@@ -1,6 +1,7 @@
 #include "include/seastarkv.hh"
 #include "include/req_server.hh"
 #include "include/net_server.hh"
+#include "include/scheduler.hh"
 #include "include/db.hh"
 #include "v8/src/runtime/runtime.h"
 #include <iostream>
@@ -97,6 +98,54 @@ int req_service::get_tid_direct(void) {
     return current_tid;
 }
 
+future<> req_service::run_func(function_args args, int tid) {
+    v8::Locker locker{isolate};              
+    Isolate::Scope isolate_scope(isolate);
+    HandleScope handle_scope(isolate);
+
+    current_tid = tid;
+    
+    // Switch to V8 context of this tenant
+    Local<Context> context = Local<Context>::New(isolate, contexts[current_tid]);
+    Context::Scope context_scope(context);
+    current_context = &context;
+
+    sstring& name = args._args[0];
+
+    Local<Function> process_fun;
+    if (prev_fun_name[current_tid] != name) {
+        Local<String> process_name =
+            String::NewFromUtf8(isolate, name.c_str(), NewStringType::kNormal)
+                .ToLocalChecked();
+        Local<Value> process_val;
+        if (!context->Global()->Get(context, process_name).ToLocal(&process_val) ||
+            !process_val->IsFunction()) {
+             printf("get function %s fail\n", name.c_str());
+        }
+        process_fun = Local<Function>::Cast(process_val);
+        prev_fun_name[current_tid] = name;
+        prev_fun[current_tid].Reset(isolate, process_fun);
+    } else {
+         process_fun = Local<Function>::New(isolate, prev_fun[current_tid]);
+    }
+ 
+    Local<Value> result;
+    sstring tmp;
+
+    const int argc = args._count -1;
+    Local<Value> argv[argc];
+    for (int i = 0; i < argc; i++) {
+        argv[i] = Number::New(isolate, atoi(args._args[i+1].c_str()));
+    }
+
+    if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+
+    } else {
+
+    }
+    return make_ready_future<>();
+}
+
 // Run JavaScript function
 future<> req_service::js_req(args_collection& args, output_stream<char>& out, int tid) {
     v8::Locker locker{isolate};              
@@ -117,7 +166,6 @@ future<> req_service::js_req(args_collection& args, output_stream<char>& out, in
         return out.write(std::move(result));
     }      
     sstring& name = req->args._command_args[0];
-    sstring& key = req->args._command_args[1];
 
     Local<Function> process_fun;
     if (prev_fun_name[current_tid] != name) {
@@ -343,4 +391,18 @@ void load_fb_graph(const v8::FunctionCallbackInfo<v8::Value>& args) {
         fb_file.close();
     } else
         cout << "Open file error.\n";
+}
+
+void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate * isolate = args.GetIsolate();
+    HandleScope handle_scope(isolate);
+
+    auto tid = local_req_server().get_tid_direct();
+
+    v8::String::Utf8Value str(args.GetIsolate(), args[0]);
+    auto name = to_sstring(ToCString(str)); 
+    function_args func_args;
+    func_args._count = 1;
+    func_args._args.push_back(name);
+    get_local_sched()->schedule(func_args, tid);
 }

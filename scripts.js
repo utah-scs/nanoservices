@@ -174,3 +174,14 @@ function count_friend_list(key, depth) {
     }
     return sum;
 }
+
+function hello() {
+    print("hello\n");
+    return;
+}
+
+function test() {
+    print("hello\n");
+    Call("hello");
+    return "OK\n";
+}

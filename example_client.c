@@ -60,6 +60,10 @@ int main(int argc, char **argv) {
     printf("JS predict: %s\n", reply->str);
     freeReplyObject(reply);
 
+    reply = redisCommand(c,"JS %s", "test");
+    printf("JS test: %s\n", reply->str);
+    freeReplyObject(reply);
+
     /* Disconnects and frees the context */
     redisFree(c);
 

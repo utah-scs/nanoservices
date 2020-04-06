@@ -93,6 +93,11 @@ enum {
     REDIS_BITMAP,
 };
 
+struct function_args {
+    uint32_t _count;
+    std::vector<sstring> _args;
+};
+
 struct args_collection {
     uint32_t _command_args_count;
     std::vector<sstring> _command_args;

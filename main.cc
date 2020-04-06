@@ -2,6 +2,7 @@
 #include "include/net_server.hh"
 #include "include/req_server.hh"
 #include "include/db.hh"
+#include "include/scheduler.hh"
 #include <sys/resource.h>
 
 #define PLATFORM "seastar"
@@ -36,10 +37,12 @@ int main(int argc, char** argv) {
         return async([argc, argv] () {
             auto& net_server = get_net_server();
             auto& req_server = get_req_server();
+            auto& sched_server = get_sched_server();
             auto& db = get_database();
 
             engine().at_exit([&] { return net_server.stop(); });
             engine().at_exit([&] { return req_server.stop(); });
+            engine().at_exit([&] { return sched_server.stop(); });
             engine().at_exit([&] { return db.stop(); });
 
             db.start().then([&] {
@@ -54,6 +57,8 @@ int main(int argc, char** argv) {
                 // Start JS thread on all cores
                 return req_server.invoke_on_all(&req_service::js);
             }).get();
+
+	    sched_server.start().get();
        });
     });
     V8::Dispose();
