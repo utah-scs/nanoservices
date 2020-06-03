@@ -98,7 +98,7 @@ int req_service::get_tid_direct(void) {
     return current_tid;
 }
 
-future<> req_service::run_func(function_args args, int tid) {
+future<> req_service::run_func(const v8::FunctionCallbackInfo<v8::Value>& args, int tid) {
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -110,32 +110,22 @@ future<> req_service::run_func(function_args args, int tid) {
     Context::Scope context_scope(context);
     current_context = &context;
 
-    sstring& name = args._args[0];
-
     Local<Function> process_fun;
-    if (prev_fun_name[current_tid] != name) {
-        Local<String> process_name =
-            String::NewFromUtf8(isolate, name.c_str(), NewStringType::kNormal)
-                .ToLocalChecked();
-        Local<Value> process_val;
-        if (!context->Global()->Get(context, process_name).ToLocal(&process_val) ||
-            !process_val->IsFunction()) {
-             printf("get function %s fail\n", name.c_str());
-        }
-        process_fun = Local<Function>::Cast(process_val);
-        prev_fun_name[current_tid] = name;
-        prev_fun[current_tid].Reset(isolate, process_fun);
-    } else {
-         process_fun = Local<Function>::New(isolate, prev_fun[current_tid]);
+    Local<String> process_name = Local<String>::Cast(args[0]);
+    Local<Value> process_val;
+    if (!context->Global()->Get(context, process_name).ToLocal(&process_val) ||
+        !process_val->IsFunction()) {
+         printf("get function fail\n");
     }
+    process_fun = Local<Function>::Cast(process_val);
  
     Local<Value> result;
     sstring tmp;
 
-    const int argc = args._count -1;
+    const int argc = args.Length() -1;
     Local<Value> argv[argc];
     for (int i = 0; i < argc; i++) {
-        argv[i] = Number::New(isolate, atoi(args._args[i+1].c_str()));
+        argv[i] = args[i+1];
     }
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
@@ -190,7 +180,9 @@ future<> req_service::js_req(args_collection& args, output_stream<char>& out, in
     const int argc = req->args._command_args_count -1;
     Local<Value> argv[argc];
     for (int i = 0; i < argc; i++) {
-        argv[i] = Number::New(isolate, atoi(req->args._command_args[i+1].c_str()));
+	argv[i] = v8::String::NewFromUtf8(isolate, req->args._command_args[i+1].c_str(), v8::NewStringType::kNormal)
+          .ToLocalChecked();
+        //argv[i] = Number::New(isolate, atoi(req->args._command_args[i+1].c_str()));
     }
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
@@ -399,10 +391,5 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
     auto tid = local_req_server().get_tid_direct();
 
-    v8::String::Utf8Value str(args.GetIsolate(), args[0]);
-    auto name = to_sstring(ToCString(str)); 
-    function_args func_args;
-    func_args._count = 1;
-    func_args._args.push_back(name);
-    get_local_sched()->schedule(func_args, tid);
+    get_local_sched()->schedule(args, tid);
 }

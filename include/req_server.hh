@@ -187,7 +187,7 @@ public:
     future<> get(args_collection& args, output_stream<char>& out);
     future<> del(args_collection& args, output_stream<char>& out);
     future<> js_req(args_collection& args, output_stream<char>& out, int tid);
-    future<> run_func(function_args args, int tid);
+    future<> run_func(const v8::FunctionCallbackInfo<v8::Value>& args, int tid);
     future<int> get_tid(void);
     int get_tid_direct(void);
 };

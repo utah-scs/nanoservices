@@ -175,13 +175,23 @@ function count_friend_list(key, depth) {
     return sum;
 }
 
-function hello() {
-    print("hello\n");
+function user_mention_service(arg) {
+    print(arg);
     return;
 }
 
-function test() {
-    print("hello\n");
-    Call("hello");
+function url_service(arg) {
+    print(arg);
+    return;
+}
+
+function test(val) {
+    print(val);
+    let user_mentions = val.match(/@[a-zA-Z0-9-_]+/g);
+//    print(user_mentions);
+    let urls = val.match(/(http:\/\/|https:\/\/)([a-zA-Z0-9_!~*'().&=+$%-]+)/g);
+//    print(urls);
+    Call("user_mention_service", user_mentions);
+    Call("url_service", urls);
     return "OK\n";
 }

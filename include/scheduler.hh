@@ -23,6 +23,6 @@ public:
       return make_ready_future<>();
     }
     scheduler() {};
-    future<> schedule(function_args args, int tid);
+    future<> schedule(const v8::FunctionCallbackInfo<v8::Value>& args, int tid);
 };
 
