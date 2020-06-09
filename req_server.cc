@@ -227,7 +227,6 @@ void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
 // C++ binding for JS functions to set data to hashtable
 void db_set(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto ctx = args.GetIsolate()->GetCurrentContext();
-
     v8::String::Utf8Value str(args.GetIsolate(), args[0]);
     auto name = std::string(*str);
     auto db = get_db(name);
@@ -243,7 +242,7 @@ void db_set(const v8::FunctionCallbackInfo<v8::Value>& args) {
         key = args[1]->Uint32Value(ctx).ToChecked();
     }
 
-    auto content = args[1].As<v8::ArrayBuffer>()->Externalize();
+    auto content = args[2].As<v8::ArrayBuffer>()->Externalize();
     db_val* val = (db_val*)malloc(sizeof(db_val));
     val->data = content.Data();
     val->length = content.ByteLength();
