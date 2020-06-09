@@ -31,18 +31,6 @@ future<> req_service::stop() {
     return make_ready_future<>();
 }
 
-inline uint32_t get_hash(uint32_t key, uint32_t seed) {
-    uint32_t hash = key;
-    hash = hash ^ seed;
-    hash = ~hash + (hash << 15);  // hash = (hash << 15) - hash - 1;
-    hash = hash ^ (hash >> 12);
-    hash = hash + (hash << 2);
-    hash = hash ^ (hash >> 4);
-    hash = hash * 2057;  // hash = (hash + (hash << 3)) + (hash << 11);
-    hash = hash ^ (hash >> 16);
-    return hash & 0x3fffffff;
-}
-
 future<int> req_service::get_tid(void) {
     return make_ready_future<int>(current_tid);
 }
