@@ -9,13 +9,6 @@ using namespace redis;
 using namespace std;
 
 class database;
-extern distributed<database> db;
-inline distributed<database>& get_database() {
-    return db;
-}
-inline database* get_local_database() {
-    return &db.local();
-}
 
 struct db_val {
     uint32_t key;
@@ -43,10 +36,10 @@ public:
     typedef struct hashtable hashtable_t;
     typedef struct db_val db_val_t;
 
-    void hashtable_init(hashtable_t* ht, uint32_t size) {
-        ht->table = (db_val**)calloc(size, sizeof(void*));
-        assert(ht->table != NULL);
-        ht->size = size;
+    void hashtable_init(uint32_t size) {
+        ht.table = (db_val**)calloc(size, sizeof(void*));
+        assert(ht.table != NULL);
+        ht.size = size;
         return;
     }
 
@@ -64,10 +57,10 @@ public:
         return hash & 0x3fffffff;
     }
 
-    void ht_set(hashtable_t* ht, db_val_t* val) {
+    void ht_set(db_val_t* val) {
         val->next = NULL;
-        uint32_t hash = get_hash(val->key, 0) % ht->size;
-        db_val_t* next = ht->table[hash];
+        uint32_t hash = get_hash(val->key, 0) % ht.size;
+        db_val_t* next = ht.table[hash];
         db_val_t* before = NULL;
         while (next != NULL && next->key != val->key) {
             before = next;
@@ -82,12 +75,12 @@ public:
         } else if (before != NULL){
             before->next = val;
         } else
-            ht->table[hash] = val;
+            ht.table[hash] = val;
     }
 
-    db_val_t* ht_get(hashtable_t* ht, uint32_t key) {
-        uint32_t hash = get_hash(key, 0) % ht->size;
-        db_val_t* p = ht->table[hash];
+    db_val_t* ht_get(uint32_t key) {
+        uint32_t hash = get_hash(key, 0) % ht.size;
+        db_val_t* p = ht.table[hash];
         while (p && p->key != key)
             p = p->next;
         return p;
@@ -95,25 +88,31 @@ public:
 
     database()
     {
+        ht.table = NULL;
+	hashtable_init(1000*1000);
     }
 
     ~database() {
     }; 
 
-    future<> set_all(redis_key rk, db_val val);
-    future<scattered_message_ptr> set(const redis_key& rk, sstring& val);
-    future<scattered_message_ptr> get(const redis_key& key, int tid);
-    bool del(const redis_key& key);
-    future<foreign_ptr<lw_shared_ptr<db_val>>> get_direct(uint32_t key, int tid);
-    future<foreign_ptr<lw_shared_ptr<sstring>>> set_direct(uint32_t key, db_val* val, int tid);
-    future<foreign_ptr<lw_shared_ptr<sstring>>> del_direct(const redis_key& rk, int tid);
-    future<foreign_ptr<lw_shared_ptr<db_val>>> get_iterator(const redis_key& rk, int tid);
-    future<foreign_ptr<lw_shared_ptr<db_val>>> get_next(int tid);
-    future<foreign_ptr<lw_shared_ptr<db_val**>>> get_table(int tid);
-    db_val** get_table_direct(int tid);
+    db_val** get_table_direct(void);
 
-    future<> start();
-    future<> stop();
-    // One hashtable for each V8 context
-    hashtable_t ht[NUM_CONTEXTS];
+private:
+    hashtable_t ht;
 };
+
+extern unordered_map<string, database*> db_map;
+
+inline database* get_db(std::string s) {
+    if (db_map.find(s) == db_map.end())
+        return NULL;
+    return db_map[s];
+}
+
+inline bool create_db(std::string s) {
+    auto db = new database;
+    if (!db)
+        return false;
+    db_map[s] = db;
+    return true;
+}

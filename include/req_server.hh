@@ -34,6 +34,7 @@ void iterator_next(const v8::FunctionCallbackInfo<v8::Value>& args);
 void get_hash_table(const v8::FunctionCallbackInfo<v8::Value>& args);
 void load_fb_graph(const v8::FunctionCallbackInfo<v8::Value>& args);
 void call_function(const v8::FunctionCallbackInfo<v8::Value>& args);
+void new_database(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 using message = scattered_message<char>;
 class req_service {
@@ -136,14 +137,14 @@ public:
                     v8::FunctionTemplate::New(isolate, get_hash_table)
                 );
                 global->Set(
-                    v8::String::NewFromUtf8(isolate, "LoadFBGraph", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::FunctionTemplate::New(isolate, load_fb_graph)
-                );
-                global->Set(
                     v8::String::NewFromUtf8(isolate, "Call", v8::NewStringType::kNormal)
                         .ToLocalChecked(),
                     v8::FunctionTemplate::New(isolate, call_function)
+                );
+                global->Set(
+                    v8::String::NewFromUtf8(isolate, "NewDB", v8::NewStringType::kNormal)
+                        .ToLocalChecked(),
+                    v8::FunctionTemplate::New(isolate, new_database)
                 );
                 
                 // JS script can get the current tenant id by this global variable.

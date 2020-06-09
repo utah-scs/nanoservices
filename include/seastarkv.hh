@@ -54,7 +54,6 @@
 #include <iostream>
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8.h"
-#include "v8/include/v8.h"
 #include "v8/src/flags/flags.h"
 #include <unistd.h>
 #include <boost/intrusive/unordered_set.hpp>

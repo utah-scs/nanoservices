@@ -11,6 +11,7 @@
 #include <fstream>
 #include <chrono>
 #include <string>
+#include <functional>
 
 using namespace std;
 using namespace seastar;
@@ -30,27 +31,6 @@ future<> req_service::stop() {
     return make_ready_future<>();
 }
 
-// C++ version of set()
-future<> req_service::set(args_collection& args, output_stream<char>& out, int tid) {
-    if (args._command_args_count < 2) {
-        return out.write(msg_syntax_err);
-    }
-
-    sstring& key = args._command_args[0];
-    sstring& val = args._command_args[1];
-
-    db_val* v = (db_val*)malloc(sizeof(db_val));
-    v->data = (void *)malloc(sizeof(size_t));
-    *(uint32_t*)(v->data) = atoi(val.c_str());
-    v->length = 1;
-    uint32_t k = atoi(key.c_str());
-    v->key = k;
-
-    return get_local_database()->set_direct(k, std::ref(v), tid).then([&out] (auto&& m) {
-        return out.write(std::move(*m));
-    });
-}
-
 inline uint32_t get_hash(uint32_t key, uint32_t seed) {
     uint32_t hash = key;
     hash = hash ^ seed;
@@ -61,33 +41,6 @@ inline uint32_t get_hash(uint32_t key, uint32_t seed) {
     hash = hash * 2057;  // hash = (hash + (hash << 3)) + (hash << 11);
     hash = hash ^ (hash >> 16);
     return hash & 0x3fffffff;
-}
-
-// C++ version of get()
-future<> req_service::get(args_collection& args, output_stream<char>& out) {
-    if (args._command_args_count < 1) {
-        cout << "syntax err\n";
-        return out.write(msg_syntax_err);
-    }
-    sstring& key = args._command_args[0];
-    auto k = atoi(key.c_str());
-    auto tid = current_tid;
-
-    auto db = get_local_database();
-    db_val* val = db->ht_get(&db->ht[tid], k);
-
-    if (!val) {
-        cout << "not found" << key << "\n";
-        sstring v = to_sstring(-1);
-        auto result = reply_builder::build_direct(v, v.size());
-        return out.write(std::move(result));
-    }
-
-    auto data = (uint32_t*)(val->data);
-    sstring v = to_sstring(*data);
-
-    auto result = reply_builder::build_direct(v, v.size());
-    return out.write(std::move(result));
 }
 
 future<int> req_service::get_tid(void) {
@@ -242,11 +195,25 @@ future<> req_service::js() {
 void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     db_val ret;
     db_val* ret_p = &ret;
-    uint32_t key = args[0]->Uint32Value(args.GetIsolate()->GetCurrentContext()).ToChecked();
 
-    auto db = get_local_database();
-    auto tid = local_req_server().get_tid_direct();
-    db_val* val = db->ht_get(&db->ht[tid], key);
+    auto ctx = args.GetIsolate()->GetCurrentContext();
+
+    v8::String::Utf8Value str(args.GetIsolate(), args[0]);
+    auto name = std::string(*str);
+    auto db = get_db(name);
+
+    uint32_t key;
+    if (args[1]->IsString()) {
+        v8::String::Utf8Value s(args.GetIsolate(), args[1]);
+	auto k = std::string(*s);
+	std::hash<std::string> hasher;
+	auto hashed = hasher(k);
+	key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
+    } else {
+        key = args[1]->Uint32Value(ctx).ToChecked();
+    }
+
+    db_val* val = db->ht_get(key);
     if (!val) {
         val = (db_val*)malloc(sizeof(db_val));
         val->length = 0;
@@ -259,18 +226,30 @@ void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
 // C++ binding for JS functions to set data to hashtable
 void db_set(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    auto ctx = args.GetIsolate()->GetCurrentContext();
+
+    v8::String::Utf8Value str(args.GetIsolate(), args[0]);
+    auto name = std::string(*str);
+    auto db = get_db(name);
+
+    uint32_t key;
+    if (args[1]->IsString()) {
+        v8::String::Utf8Value s(args.GetIsolate(), args[1]);
+	auto k = std::string(*s);
+	std::hash<std::string> hasher;
+	auto hashed = hasher(k);
+	key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
+    } else {
+        key = args[1]->Uint32Value(ctx).ToChecked();
+    }
+
     auto content = args[1].As<v8::ArrayBuffer>()->Externalize();
     db_val* val = (db_val*)malloc(sizeof(db_val));
     val->data = content.Data();
     val->length = content.ByteLength();
-    uint32_t key = args[0]->Uint32Value(args.GetIsolate()->GetCurrentContext()).ToChecked();
     val->key = key;
 
-    auto tid = local_req_server().get_tid_direct();
-    auto db = get_local_database();
-    if (db->ht[tid].table == NULL)
-        db->hashtable_init(&db->ht[tid], 1000*1000);
-    db->ht_set(&db->ht[tid], val);
+    db->ht_set(val);
 
     args.GetReturnValue().Set(
         v8::String::NewFromUtf8(args.GetIsolate(), "ok\n",
@@ -279,20 +258,6 @@ void db_set(const v8::FunctionCallbackInfo<v8::Value>& args) {
 }
 
 void db_del(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    v8::String::Utf8Value str(args.GetIsolate(), args[0]);
-    const char* cstr = ToCString(str);
-    sstring key = to_sstring(cstr);
-    sstring& k = key;
-    redis_key rk{std::ref(k)};
-    auto cpu = rk.get_cpu();
-    local_req_server().get_tid().then([&rk, &args, &cpu](auto&& t) {
-        return get_database().invoke_on(cpu, &database::del_direct, std::move(rk), std::move(t)).then([&args] (auto&& m) {
-            auto val = std::move(*m).c_str();
-            args.GetReturnValue().Set(
-                v8::String::NewFromUtf8(args.GetIsolate(), val,
-                                        v8::NewStringType::kNormal).ToLocalChecked());
-        });
-    }).get();
 }
 
 // C++ binding for JS functions to print messages
@@ -310,79 +275,13 @@ void get_hash_table(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate * isolate = args.GetIsolate();
     HandleScope handle_scope(isolate);
 
-    auto tid = local_req_server().get_tid_direct();
-    auto table = get_local_database()->get_table_direct(tid); 
+    v8::String::Utf8Value str(args.GetIsolate(), args[0]);
+    auto name = std::string(*str);
+    auto db = get_db(name);
+
+    auto table = db->get_table_direct(); 
     Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(args.GetIsolate(), table, 1024*1024);
     args.GetReturnValue().Set(ab);
-}
-
-//C++ binding to load SNAP ego network into hashtable
-void load_fb_graph(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    string line;
-    ifstream fb_file("facebook_combined.txt");
-    if (fb_file) {
-        uint32_t prev_key = 0;
-        vector<uint32_t> arr;
-        while (getline(fb_file, line))
-        {
-            string delimiter = " ";
-            auto pos = line.find(delimiter);
-            string k = line.substr(0, pos);
-            line.erase(0, pos + delimiter.length());
-            uint32_t key = atoi(k.c_str());
-            uint32_t value = atoi(line.c_str());
-            if (key == prev_key) {
-                arr.push_back(value);
-                continue;
-            }
-
-            db_val* val = (db_val*)malloc(sizeof(db_val));
-            val->data = malloc(sizeof(uint32_t) * arr.size());
-            val->length = arr.size() * 4;
-            val->key = prev_key;
-
-            auto cur = (uint32_t*)(val->data);
-            for (auto it = arr.begin(); it != arr.end(); ++it) {
-               auto v = *it;
-               *cur = v;
-               cur++;
-            } 
-
-            auto vk = val->key;
-
-            auto tid = local_req_server().get_tid_direct();
-            auto db = get_local_database();
-            if (db->ht[tid].table == NULL)
-                db->hashtable_init(&db->ht[tid], 1000*1000);
-            db->ht_set(&db->ht[tid], val);
-
-            prev_key = key;
-            arr.clear();
-            arr.push_back(value);
-        }
-        db_val* val = (db_val*)malloc(sizeof(db_val));
-        val->data = malloc(sizeof(uint32_t) * arr.size());
-        val->length = arr.size() * 4;
-        val->key = prev_key;
-
-        auto cur = (uint32_t*)(val->data);
-        for (auto it = arr.begin(); it != arr.end(); ++it) {
-           auto v = *it;
-           *cur = v;
-           cur++;
-        } 
-
-        auto vk = val->key;
-
-        auto tid = local_req_server().get_tid_direct();
-        auto db = get_local_database();
-        if (db->ht[tid].table == NULL)
-            db->hashtable_init(&db->ht[tid], 1000*1000);
-        db->ht_set(&db->ht[tid], val);
-
-        fb_file.close();
-    } else
-        cout << "Open file error.\n";
 }
 
 void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -392,4 +291,13 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto tid = local_req_server().get_tid_direct();
 
     get_local_sched()->schedule(args, tid);
+}
+
+void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate * isolate = args.GetIsolate();
+    HandleScope handle_scope(isolate);
+
+    v8::String::Utf8Value str(isolate, args[0]);
+    auto ret = create_db(std::string(*str));
+    args.GetReturnValue().Set(v8::Boolean::New(isolate, ret));
 }

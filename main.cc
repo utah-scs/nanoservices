@@ -38,16 +38,10 @@ int main(int argc, char** argv) {
             auto& net_server = get_net_server();
             auto& req_server = get_req_server();
             auto& sched_server = get_sched_server();
-            auto& db = get_database();
 
             engine().at_exit([&] { return net_server.stop(); });
             engine().at_exit([&] { return req_server.stop(); });
             engine().at_exit([&] { return sched_server.stop(); });
-            engine().at_exit([&] { return db.stop(); });
-
-            db.start().then([&] {
-                return db.invoke_on_all(&database::start);
-            }).get();
 
             net_server.start().then([&] {
                 return net_server.invoke_on_all(&network_server::start);
