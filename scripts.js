@@ -16,19 +16,21 @@ function setup() {
 	print("Create database for user_mention_service failed.");
     if (!NewDB("url_service"))
 	print("Create database for url_service failed.");
-    let buf = str2ab("username");
-    let key = "userid";
-    DBSet("user_mention_service", key, buf);
-    print(ab2str(DBGet("user_mention_service", key)));
 }
 
 function user_register(userid, username) {
-    DBSet("user_mention_service", userid, str2ab(username));
-    print(ab2str(DBGet("user_mention_service", userid)));
+    DBSet("user_mention_service", username, str2ab(userid));
 }
 
-function user_mention_service(arg) {
-    print(arg);
+function user_mention_service(mentions) {
+    let length = mentions.length;
+    let results = [];
+    for (let i = 0; i < length; i++) {
+	let username = mentions[i].substring(1);
+        let userid = ab2str(DBGet("user_mention_service", username));
+	results.push([username, userid]);
+    }
+    print(results);
     return;
 }
 
