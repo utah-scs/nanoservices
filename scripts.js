@@ -22,6 +22,11 @@ function setup() {
     print(ab2str(DBGet("user_mention_service", key)));
 }
 
+function user_register(userid, username) {
+    DBSet("user_mention_service", userid, str2ab(username));
+    print(ab2str(DBGet("user_mention_service", userid)));
+}
+
 function user_mention_service(arg) {
     print(arg);
     return;
