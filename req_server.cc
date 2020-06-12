@@ -31,28 +31,90 @@ future<> req_service::stop() {
     return make_ready_future<>();
 }
 
-future<int> req_service::get_tid(void) {
-    return make_ready_future<int>(current_tid);
+future<> req_service::register_service(std::string service) {
+    v8::Locker locker{isolate};              
+    Isolate::Scope isolate_scope(isolate);
+    {
+        HandleScope handle_scope(isolate);
+
+	v8::Local<v8::ObjectTemplate> global = v8::ObjectTemplate::New(isolate);
+        // Set C++ bindings
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "DBGet", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, db_get)
+        );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "DBSet", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, db_set)
+        );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "DBDel", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, db_del)
+        );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "print", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, js_print)
+        );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "GetHashTable", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, get_hash_table)
+        );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "Call", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, call_function)
+        );
+	global->Set(
+            v8::String::NewFromUtf8(isolate, "NewDB", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, new_database)
+        );
+
+        Local<Context> c = Context::New(isolate, NULL, global);
+        Context::Scope contextScope(c);
+
+	Local<String> source;
+        // Read the JS script file.
+        if (!read_file(isolate, "services/" + service).ToLocal(&source)) {
+            fprintf(stderr, "Error reading file\n");
+        }
+
+        Local<Script> s =
+          Script::Compile(c, source).ToLocalChecked();
+
+        Local<Value> result;
+        if (!s->Run(c).ToLocal(&result)) {
+          printf("run script error\n");
+        }
+
+        ctx_map[service] = unallocated_ctx;
+        contexts[unallocated_ctx].Reset(isolate, c);
+	unallocated_ctx++;
+    }
+    create_db(service);
+    return make_ready_future<>();
 }
 
-int req_service::get_tid_direct(void) {
-    return current_tid;
-}
-
-future<> req_service::run_func(const v8::FunctionCallbackInfo<v8::Value>& args, int tid) {
+future<> req_service::run_func(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
 
-    current_tid = tid;
+    v8::String::Utf8Value str(args.GetIsolate(), args[0]);
+    auto service = std::string(*str);
     
-    // Switch to V8 context of this tenant
-    Local<Context> context = Local<Context>::New(isolate, contexts[current_tid]);
+    // Switch to V8 context of this service
+    Local<Context> context = Local<Context>::New(isolate, contexts[ctx_map[service]]);
     Context::Scope context_scope(context);
     current_context = &context;
 
     Local<Function> process_fun;
-    Local<String> process_name = Local<String>::Cast(args[0]);
+    Local<String> process_name = Local<String>::Cast(args[1]);
     Local<Value> process_val;
     if (!context->Global()->Get(context, process_name).ToLocal(&process_val) ||
         !process_val->IsFunction()) {
@@ -63,10 +125,10 @@ future<> req_service::run_func(const v8::FunctionCallbackInfo<v8::Value>& args, 
     Local<Value> result;
     sstring tmp;
 
-    const int argc = args.Length() -1;
+    const int argc = args.Length() -2;
     Local<Value> argv[argc];
     for (int i = 0; i < argc; i++) {
-        argv[i] = args[i+1];
+        argv[i] = args[i+2];
     }
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
@@ -78,52 +140,45 @@ future<> req_service::run_func(const v8::FunctionCallbackInfo<v8::Value>& args, 
 }
 
 // Run JavaScript function
-future<> req_service::js_req(args_collection& args, output_stream<char>& out, int tid) {
+future<> req_service::js_req(args_collection& args, output_stream<char>& out) {
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
 
-    current_tid = tid;
-    
-    // Switch to V8 context of this tenant
-    Local<Context> context = Local<Context>::New(isolate, contexts[current_tid]);
-    Context::Scope context_scope(context);
-    current_context = &context;
-
     auto req = make_lw_shared<rqst>(args);
-    if (req->args._command_args_count < 1) {
+    if (req->args._command_args_count < 2) {
         sstring tmp = to_sstring(msg_syntax_err);
         auto result = reply_builder::build_direct(tmp, tmp.size());
         return out.write(std::move(result));
     }      
-    sstring& name = req->args._command_args[0];
+
+    auto service = std::string(req->args._command_args[0].c_str());
+    // Switch to V8 context of this service
+    Local<Context> context = Local<Context>::New(isolate, contexts[ctx_map[service]]);
+    Context::Scope context_scope(context);
+    current_context = &context;
+
+    sstring& name = req->args._command_args[1];
 
     Local<Function> process_fun;
-    if (prev_fun_name[current_tid] != name) {
-        Local<String> process_name =
-            String::NewFromUtf8(isolate, name.c_str(), NewStringType::kNormal)
-                .ToLocalChecked();
-        Local<Value> process_val;
-        if (!context->Global()->Get(context, process_name).ToLocal(&process_val) ||
-            !process_val->IsFunction()) {
-             printf("get function %s fail\n", name.c_str());
-        }
-        process_fun = Local<Function>::Cast(process_val);
-        prev_fun_name[current_tid] = name;
-        prev_fun[current_tid].Reset(isolate, process_fun);
-    } else {
-         process_fun = Local<Function>::New(isolate, prev_fun[current_tid]);
+    Local<String> process_name =
+        String::NewFromUtf8(isolate, name.c_str(), NewStringType::kNormal)
+            .ToLocalChecked();
+    Local<Value> process_val;
+    if (!context->Global()->Get(context, process_name).ToLocal(&process_val) ||
+        !process_val->IsFunction()) {
+         printf("get function %s fail\n", name.c_str());
     }
+    process_fun = Local<Function>::Cast(process_val);
  
     Local<Value> result;
     sstring tmp;
 
-    const int argc = req->args._command_args_count -1;
+    const int argc = req->args._command_args_count -2;
     Local<Value> argv[argc];
     for (int i = 0; i < argc; i++) {
-	argv[i] = v8::String::NewFromUtf8(isolate, req->args._command_args[i+1].c_str(), v8::NewStringType::kNormal)
+	argv[i] = v8::String::NewFromUtf8(isolate, req->args._command_args[i+2].c_str(), v8::NewStringType::kNormal)
           .ToLocalChecked();
-        //argv[i] = Number::New(isolate, atoi(req->args._command_args[i+1].c_str()));
     }
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
@@ -275,9 +330,7 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate * isolate = args.GetIsolate();
     HandleScope handle_scope(isolate);
 
-    auto tid = local_req_server().get_tid_direct();
-
-    get_local_sched()->schedule(args, tid);
+    get_local_sched()->schedule(args);
 }
 
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {

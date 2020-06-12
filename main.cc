@@ -49,6 +49,10 @@ int main(int argc, char** argv) {
 
             req_server.start(argv).then([&req_server] {
                 // Start JS thread on all cores
+		req_server.invoke_on_all(&req_service::register_service, std::string("text_service.js"));
+		req_server.invoke_on_all(&req_service::register_service, std::string("url_shorten_service.js"));
+		req_server.invoke_on_all(&req_service::register_service, std::string("user_mention_service.js"));
+		req_server.invoke_on_all(&req_service::register_service, std::string("user_service.js"));
                 return req_server.invoke_on_all(&req_service::js);
             }).get();
 

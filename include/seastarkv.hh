@@ -62,8 +62,8 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
 
-// The number of JS contexts, there should be one context for each tenant.
-#define NUM_CONTEXTS 64
+// The number of services allowed.
+#define NUM_SERVICES 1024
 
 using namespace seastar;
 

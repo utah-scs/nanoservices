@@ -42,14 +42,11 @@ private:
     // The tenant id tied to the currently running script.
     // The JavaScript context of the currently running script.
     Local<Context>* current_context;
+    Global<Context> contexts[NUM_SERVICES];
+    unsigned unallocated_ctx = 0;
+    unordered_map<std::string, unsigned> ctx_map;
     char** argv;
     Isolate::CreateParams create_params;
-    // JavaScript contexts for each tenant.
-    Global<Context> contexts[NUM_CONTEXTS];
-    // Stores the function object of the last run JS function.
-    Global<Function> prev_fun[NUM_CONTEXTS];
-    // Stores the name of the last run JS function.
-    sstring prev_fun_name[NUM_CONTEXTS];
     Global<ObjectTemplate> args_templ;
 
     // Semaphore to signal incoming requests to JS thread.
@@ -94,7 +91,6 @@ private:
     }
 
 public:
-    int current_tid;
     Isolate* isolate;
 
     req_service(char** a)
@@ -103,92 +99,12 @@ public:
         create_params.array_buffer_allocator =
             v8::ArrayBuffer::Allocator::NewDefaultAllocator();
         isolate = Isolate::New(create_params);
-        Isolate::Scope isolate_scope(isolate);
-        {
-            HandleScope handle_scope(isolate);
-           
-            // Setup the JS contexts for every tenant..
-            for (int i = 0; i < NUM_CONTEXTS; i++) {
-                v8::Local<v8::ObjectTemplate> global = v8::ObjectTemplate::New(isolate);
-		// Set C++ bindings
-                global->Set(
-                    v8::String::NewFromUtf8(isolate, "DBGet", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::FunctionTemplate::New(isolate, db_get)
-                );
-                global->Set(
-                    v8::String::NewFromUtf8(isolate, "DBSet", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::FunctionTemplate::New(isolate, db_set)
-                );
-                global->Set(
-                    v8::String::NewFromUtf8(isolate, "DBDel", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::FunctionTemplate::New(isolate, db_del)
-                );
-                global->Set(
-                    v8::String::NewFromUtf8(isolate, "print", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::FunctionTemplate::New(isolate, js_print)
-                );
-                global->Set(
-                    v8::String::NewFromUtf8(isolate, "GetHashTable", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::FunctionTemplate::New(isolate, get_hash_table)
-                );
-                global->Set(
-                    v8::String::NewFromUtf8(isolate, "Call", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::FunctionTemplate::New(isolate, call_function)
-                );
-                global->Set(
-                    v8::String::NewFromUtf8(isolate, "NewDB", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::FunctionTemplate::New(isolate, new_database)
-                );
-                
-                // JS script can get the current tenant id by this global variable.
-                global->Set(
-                    v8::String::NewFromUtf8(isolate, "TID", v8::NewStringType::kNormal)
-                        .ToLocalChecked(),
-                    v8::Number::New(isolate, i)
-                );
-
-                Local<Context> c = Context::New(isolate, NULL, global);
-                Context::Scope contextScope(c);
-                contexts[i].Reset(isolate, c);
-            }
-
-            for (int i = 0; i < NUM_CONTEXTS; i++) {
-                Local<Context> c = Local<Context>::New(isolate, contexts[i]);
-                Context::Scope contextScope(c);
-
-                Local<String> source;
-                // Read the JS script file.
-                if (!read_file(isolate, "scripts.js").ToLocal(&source)) {
-                    fprintf(stderr, "Error reading file\n");
-                }
-
-                Local<Script> s =
-                  Script::Compile(c, source).ToLocalChecked();
-  
-                Local<Value> result;
-                if (!s->Run(c).ToLocal(&result)) {
-                  printf("run script error\n");
-                }
-                contexts[i].Reset(isolate, c);
-            }
-        }
     }
+
     future<> start();
     future<> stop();
+    future<> register_service(std::string service);
     future<> js();
-    future<bool> remove_impl(sstring& key);
-    future<> set(args_collection& args, output_stream<char>& out, int tid);
-    future<> get(args_collection& args, output_stream<char>& out);
-    future<> del(args_collection& args, output_stream<char>& out);
-    future<> js_req(args_collection& args, output_stream<char>& out, int tid);
-    future<> run_func(const v8::FunctionCallbackInfo<v8::Value>& args, int tid);
-    future<int> get_tid(void);
-    int get_tid_direct(void);
+    future<> js_req(args_collection& args, output_stream<char>& out);
+    future<> run_func(const v8::FunctionCallbackInfo<v8::Value>& args);
 };

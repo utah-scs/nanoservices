@@ -16,12 +16,12 @@ inline unsigned getcpu(const sstring& key) {
     return std::hash<sstring>()(key) % smp::count;
 }
 
-future<> connection_handler::handle(input_stream<char>& in, output_stream<char>& out, int& tid) {
+future<> connection_handler::handle(input_stream<char>& in, output_stream<char>& out) {
     _parser.init();
 
    // NOTE: The command is handled sequentially. The parser will control the lifetime
     // of every parameters for command.
-    return in.consume(_parser).then([this, &in, &out, &tid] () -> future<> {
+    return in.consume(_parser).then([this, &in, &out] () -> future<> {
         switch (_parser._state) {
             case redis_protocol_parser::state::eof:
                 printf("Parser eof\n");
@@ -35,7 +35,7 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
                 switch (_parser._command) {
 		    // Shredder adds JS command to run JavaScript functions
                     case redis_protocol_parser::command::js:
-                         return local_req_server().js_req(std::move(std::ref(_request_args)), std::ref(out), tid);
+                         return local_req_server().js_req(std::move(std::ref(_request_args)), std::ref(out));
                     case redis_protocol_parser::command::info:
                          return out.write("$0\r\n\r\n").then([&out] () {
                               return out.flush();
