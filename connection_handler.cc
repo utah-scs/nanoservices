@@ -26,7 +26,7 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
             case redis_protocol_parser::state::eof:
                 printf("Parser eof\n");
             case redis_protocol_parser::state::error:
-                printf("Parser error\n");
+                //printf("Parser error\n");
                 return make_ready_future<>();
 
             case redis_protocol_parser::state::ok:
