@@ -1,3 +1,16 @@
+function async_call(service, func, args) {
+    return new Promise(function(resolve, reject) {
+        Call(service, func,
+            function(error, result) {
+                if (error) {
+                    return reject(error);
+                }
+                return resolve(result);
+            },
+            args);
+    });
+}
+
 function gen_random_str(length) {
     let char_map = "abcdefghijklmnopqrstuvwxyzABCDEF"
                     "GHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -15,7 +28,7 @@ function upload_urls(urls) {
         let shorturl = "http://short-url/" + gen_random_str(10);
         results.push([urls[i], shorturl]);
     }
-    print(results);
-    return;
+//    print(results);
+    return results;
 }
 

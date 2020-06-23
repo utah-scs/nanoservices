@@ -1,5 +1,6 @@
 #include "include/connection_handler.hh"
 #include "include/req_server.hh"
+#include "include/scheduler.hh"
 
 using namespace seastar;
 void connection_handler::prepare_request()
@@ -16,7 +17,7 @@ inline unsigned getcpu(const sstring& key) {
     return std::hash<sstring>()(key) % smp::count;
 }
 
-future<> connection_handler::handle(input_stream<char>& in, output_stream<char>& out) {
+future<> connection_handler::handle(input_stream<char>& in, output_stream<char>* out) {
     _parser.init();
 
    // NOTE: The command is handled sequentially. The parser will control the lifetime
@@ -35,22 +36,22 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
                 switch (_parser._command) {
 		    // Shredder adds JS command to run JavaScript functions
                     case redis_protocol_parser::command::js:
-                         return local_req_server().js_req(std::move(std::ref(_request_args)), std::ref(out));
+                         return get_local_sched()->new_req(std::move(std::ref(_request_args)), out);
                     case redis_protocol_parser::command::info:
-                         return out.write("$0\r\n\r\n").then([&out] () {
-                              return out.flush();
+                         return out->write("$0\r\n\r\n").then([&out] () {
+                              return out->flush();
                          });
                     case redis_protocol_parser::command::quit:
-                        return out.write(msg_ok);
+                        return out->write(msg_ok);
 
                     default:
                         //tracer.incr_number_exceptions();
-                        return out.write("+Not Implemented");
+                        return out->write("+Not Implemented");
                 };
             }
             default:
                 //tracer.incr_number_exceptions();
-                return out.write("+Error\r\n");
+                return out->write("+Error\r\n");
         };
         std::abort();
     });

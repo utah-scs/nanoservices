@@ -53,6 +53,7 @@ int main(int argc, char** argv) {
 		req_server.invoke_on_all(&req_service::register_service, std::string("url_shorten_service.js"));
 		req_server.invoke_on_all(&req_service::register_service, std::string("user_mention_service.js"));
 		req_server.invoke_on_all(&req_service::register_service, std::string("user_service.js"));
+		req_server.invoke_on_all(&req_service::register_service, std::string("test.js"));
                 return req_server.invoke_on_all(&req_service::js);
             }).get();
 

@@ -35,6 +35,7 @@ void get_hash_table(const v8::FunctionCallbackInfo<v8::Value>& args);
 void load_fb_graph(const v8::FunctionCallbackInfo<v8::Value>& args);
 void call_function(const v8::FunctionCallbackInfo<v8::Value>& args);
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args);
+void reply(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 using message = scattered_message<char>;
 class req_service {
@@ -105,6 +106,6 @@ public:
     future<> stop();
     future<> register_service(std::string service);
     future<> js();
-    future<> js_req(args_collection& args, output_stream<char>& out);
+    future<> js_req(args_collection& args, output_stream<char>* out);
     future<> run_func(const v8::FunctionCallbackInfo<v8::Value>& args);
 };

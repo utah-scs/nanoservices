@@ -38,8 +38,8 @@ int main(int argc, char **argv) {
 
     // Run JavaScript function 'setup' to setup test data, 
     // including Facebook social graphs and neural network model. 
-    reply = redisCommand(c,"JS %s", "setup");
-    printf("JS setup: %s\n", reply->str);
+    reply = redisCommand(c,"JS %d %s %s", 1, "test.js", "test");
+    printf("JS test: %s\n", reply->str);
     freeReplyObject(reply);
 
     /* Disconnects and frees the context */

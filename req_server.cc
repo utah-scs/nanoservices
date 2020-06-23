@@ -74,6 +74,11 @@ future<> req_service::register_service(std::string service) {
                 .ToLocalChecked(),
             v8::FunctionTemplate::New(isolate, new_database)
         );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "Reply", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, reply)
+        );
 
         Local<Context> c = Context::New(isolate, NULL, global);
         Context::Scope contextScope(c);
@@ -122,43 +127,50 @@ future<> req_service::run_func(const v8::FunctionCallbackInfo<v8::Value>& args) 
     }
     process_fun = Local<Function>::Cast(process_val);
  
+    Local<Function> callback = Local<Function>::Cast(args[2]);
+
     Local<Value> result;
     sstring tmp;
 
     const int argc = args.Length() -2;
     Local<Value> argv[argc];
     for (int i = 0; i < argc; i++) {
-        argv[i] = args[i+2];
+        argv[i] = args[i+3];
     }
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 
     } else {
-
+        Local<Value> cb_result;
+        v8::Local<v8::Value> args[] = {v8::Null(isolate), result};
+        if (callback->Call(context, context->Global(), 2, args).ToLocal(&cb_result)) {
+	}
     }
     return make_ready_future<>();
 }
 
 // Run JavaScript function
-future<> req_service::js_req(args_collection& args, output_stream<char>& out) {
+future<> req_service::js_req(args_collection& args, output_stream<char>* out) {
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
 
     auto req = make_lw_shared<rqst>(args);
-    if (req->args._command_args_count < 2) {
+    if (req->args._command_args_count < 3) {
         sstring tmp = to_sstring(msg_syntax_err);
         auto result = reply_builder::build_direct(tmp, tmp.size());
-        return out.write(std::move(result));
+        return out->write(std::move(result));
     }      
 
-    auto service = std::string(req->args._command_args[0].c_str());
+    size_t req_id = atoi(req->args._command_args[0].c_str());
+
+    auto service = std::string(req->args._command_args[1].c_str());
     // Switch to V8 context of this service
     Local<Context> context = Local<Context>::New(isolate, contexts[ctx_map[service]]);
     Context::Scope context_scope(context);
     current_context = &context;
 
-    sstring& name = req->args._command_args[1];
+    sstring& name = req->args._command_args[2];
 
     Local<Function> process_fun;
     Local<String> process_name =
@@ -176,30 +188,16 @@ future<> req_service::js_req(args_collection& args, output_stream<char>& out) {
 
     const int argc = req->args._command_args_count -2;
     Local<Value> argv[argc];
-    for (int i = 0; i < argc; i++) {
+    argv[0] = v8::String::NewFromUtf8(isolate, req->args._command_args[0].c_str(), v8::NewStringType::kNormal).ToLocalChecked();
+    for (int i = 1; i < argc; i++) {
 	argv[i] = v8::String::NewFromUtf8(isolate, req->args._command_args[i+2].c_str(), v8::NewStringType::kNormal)
           .ToLocalChecked();
     }
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
          auto cstr = "error\n";
-         out.write(cstr, strlen(cstr));
+         get_local_sched()->reply(req_id, std::string(cstr));
     } else {
-         if (result->IsArrayBuffer()) {
-             // Return raw data
-             auto res = Local<ArrayBuffer>::Cast(result);
-             auto cont = res->GetContents();
-             auto cstr = (char*)cont.Data();
-             out.write(cstr, cont.ByteLength());
-         } else {
-	     // Return data in Redis protocol
-             v8::String::Utf8Value str(isolate, result);
-             tmp = to_sstring(ToCString(str));
-             auto cstr = ToCString(str);
-	     auto res = reply_builder::build_direct(tmp, tmp.size());
-
-             out.write(std::move(res));
-         }
     }
     return make_ready_future<>();
 }
@@ -217,6 +215,7 @@ enum AllocationSpace {
   LAST_PAGED_SPACE = MAP_SPACE
 };
 
+// The JS thread. Keep this thread although it's doing nothing, because 
 // The JS thread. Keep this thread although it's doing nothing, because 
 // performance is better with this thread around, maybe because it keeps
 // some V8 states from garbage collectioned or something.
@@ -340,4 +339,15 @@ void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::String::Utf8Value str(isolate, args[0]);
     auto ret = create_db(std::string(*str));
     args.GetReturnValue().Set(v8::Boolean::New(isolate, ret));
+}
+
+void reply(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate * isolate = args.GetIsolate();
+    HandleScope handle_scope(isolate);
+
+    v8::String::Utf8Value num(isolate, args[0]);
+    size_t req_id = atoi(ToCString(num));
+    v8::String::Utf8Value str(isolate, args[1]);
+    auto ret = std::string(*str);
+    get_local_sched()->reply(req_id, ret);
 }

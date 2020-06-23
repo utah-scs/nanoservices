@@ -1,3 +1,16 @@
+function async_call(service, func, args) {
+    return new Promise(function(resolve, reject) {
+        Call(service, func,
+            function(error, result) {
+                if (error) {
+                    return reject(error);
+                }
+                return resolve(result);
+            },
+            args);
+    });
+}
+
 function ab2str(buf) {
   return String.fromCharCode.apply(null, new Uint16Array(buf));
 }
@@ -19,6 +32,6 @@ function upload_user_mentions(mentions) {
         let userid = ab2str(DBGet("user_mention_service.js", username));
         results.push([username, userid]);
     }
-    print(results);
-    return;
+//    print(results);
+    return results;
 }
