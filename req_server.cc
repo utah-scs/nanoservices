@@ -130,7 +130,6 @@ future<> req_service::run_func(const v8::FunctionCallbackInfo<v8::Value>& args) 
     Local<Function> callback = Local<Function>::Cast(args[2]);
 
     Local<Value> result;
-    sstring tmp;
 
     const int argc = args.Length() -2;
     Local<Value> argv[argc];
@@ -184,7 +183,6 @@ future<> req_service::js_req(args_collection& args, output_stream<char>* out) {
     process_fun = Local<Function>::Cast(process_val);
  
     Local<Value> result;
-    sstring tmp;
 
     const int argc = req->args._command_args_count -2;
     Local<Value> argv[argc];
@@ -196,7 +194,7 @@ future<> req_service::js_req(args_collection& args, output_stream<char>* out) {
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
          auto cstr = "error\n";
-         get_local_sched()->reply(req_id, std::string(cstr));
+         get_local_sched()->reply(req_id, to_sstring(cstr));
     } else {
     }
     return make_ready_future<>();
@@ -348,6 +346,6 @@ void reply(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::String::Utf8Value num(isolate, args[0]);
     size_t req_id = atoi(ToCString(num));
     v8::String::Utf8Value str(isolate, args[1]);
-    auto ret = std::string(*str);
+    auto ret = to_sstring(ToCString(str));
     get_local_sched()->reply(req_id, ret);
 }

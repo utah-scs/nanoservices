@@ -38,6 +38,6 @@ public:
     scheduler() {};
     future<> new_req(args_collection& args, output_stream<char>* out);
     future<> schedule(const v8::FunctionCallbackInfo<v8::Value>& args);
-    future<> reply(size_t req_id, std::string ret);
+    future<> reply(size_t req_id, sstring ret);
 };
 
