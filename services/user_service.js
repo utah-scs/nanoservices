@@ -1,6 +1,6 @@
-function async_call(service, func, args) {
+function async_call(req_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(service, func,
+        Call(req_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -24,6 +24,6 @@ function str2ab(str) {
   return buf;
 }
 
-function user_register(userid, username) {
+function user_register(req_id, userid, username) {
     DBSet("user_mention_service.js", username, str2ab(userid));
 }

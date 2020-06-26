@@ -47,6 +47,8 @@ int main(int argc, char** argv) {
                 return net_server.invoke_on_all(&network_server::start);
             }).get();
 
+	    sched_server.start().get();
+
             req_server.start(argv).then([&req_server] {
                 // Start JS thread on all cores
 		req_server.invoke_on_all(&req_service::register_service, std::string("text_service.js"));
@@ -57,7 +59,6 @@ int main(int argc, char** argv) {
                 return req_server.invoke_on_all(&req_service::js);
             }).get();
 
-	    sched_server.start().get();
        });
     });
     V8::Dispose();

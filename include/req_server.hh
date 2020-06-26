@@ -107,5 +107,6 @@ public:
     future<> register_service(std::string service);
     future<> js();
     future<> js_req(args_collection& args, output_stream<char>* out);
-    future<> run_func(const v8::FunctionCallbackInfo<v8::Value>& args);
+    future<> run_func(size_t req_id, std::string service, std::string function, std::string jsargs);
+    future<> run_callback(size_t req_id, std::string service, sstring ret);
 };

@@ -16,6 +16,7 @@ inline scheduler* get_local_sched() {
 
 struct req_states {
     size_t prev_cpuid;
+    std::string prev_service;
     bool local;
     output_stream<char>* out;
     v8::Global<v8::Function> callback;
@@ -27,17 +28,20 @@ struct req_states {
 
 class scheduler {
 private:
-    std::unordered_map<size_t, struct req_states*> req_map;
+    std::unordered_map<std::string, std::unordered_map<size_t, struct req_states*>*> req_map;
 
 public:
     void start();
+    struct req_states* get_req_states(std::string service, size_t req_id);
 
     future<> stop() {
       return make_ready_future<>();
     }
     scheduler() {};
+    void new_service(std::string service);
     future<> new_req(args_collection& args, output_stream<char>* out);
-    future<> schedule(const v8::FunctionCallbackInfo<v8::Value>& args);
-    future<> reply(size_t req_id, sstring ret);
+    future<> run_func(size_t cpuid, size_t req_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
+    future<> schedule(size_t req_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
+    future<> reply(size_t req_id, std::string service, sstring ret);
 };
 
