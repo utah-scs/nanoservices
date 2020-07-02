@@ -16,8 +16,10 @@ int main(int argc, char** argv) {
     char* tmp[3];
     const char* a1 = "seastarkv";
     const char* a2 = "--max-old-space-size=100000";
+    const char* a3 = "--use-strict";
     tmp[0] = (char*)a1;
     tmp[1] = (char*)a2;
+    tmp[2] = (char*)a3;
     char** opt = (char**)&tmp;
 
     V8::InitializeICUDefaultLocation(argv[0]);
@@ -26,7 +28,7 @@ int main(int argc, char** argv) {
     V8::InitializePlatform(platform.get());
     V8::Initialize();
 
-    int c = 2;
+    int c = 3;
     V8::SetFlagsFromCommandLine(&c, opt, true);
     v8::internal::FLAG_expose_gc = true;
     v8::internal::FLAG_allow_natives_syntax = true;

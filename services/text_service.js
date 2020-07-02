@@ -23,7 +23,7 @@ function upload_text(req_id, val) {
 //    );
     async_call(req_id, "url_shorten_service.js", "upload_urls", urls)
     .then(
-       result => {print(result);Reply(req_id, ServiceName, "OK");}
+       result => {Reply(req_id, ServiceName, result);}
     );
 
     return "OK\n";

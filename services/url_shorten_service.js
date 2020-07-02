@@ -28,9 +28,8 @@ function upload_urls(req_id, urls) {
         let shorturl = "http://short-url/" + gen_random_str(10);
         results.push([urls[i], shorturl]);
     }
-//    let ret = JSON.stringify(result);
-//    print(ret);
-    Reply(req_id, ServiceName, "OK");
+    let ret = JSON.stringify(results);
+    Reply(req_id, ServiceName, ret);
     return results;
 }
 
