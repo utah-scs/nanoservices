@@ -14,25 +14,31 @@ inline scheduler* get_local_sched() {
     return &sched_server.local();
 }
 
-struct req_states {
-    size_t prev_cpuid;
-    std::string prev_service;
+struct reply_states {
     bool local;
+    size_t prev_cpuid;
     output_stream<char>* out;
-    v8::Global<v8::Function> callback;
-    req_states() {
+    reply_states() {
         out = NULL;
     }
-    ~req_states() {}
+    ~reply_states() {}
+};
+
+struct callback_states {
+    v8::Global<v8::Function> callback;
+    callback_states() {
+    }
+    ~callback_states() {}
 };
 
 class scheduler {
 private:
-    std::unordered_map<std::string, std::unordered_map<size_t, struct req_states*>*> req_map;
+    std::unordered_map<std::string, void*> req_map;
 
 public:
     void start();
-    struct req_states* get_req_states(std::string service, size_t req_id);
+    void* get_req_states(std::string key);
+    void set_req_states(std::string key, void* states);
 
     future<> stop() {
       return make_ready_future<>();
@@ -40,8 +46,8 @@ public:
     scheduler() {};
     void new_service(std::string service);
     future<> new_req(args_collection& args, output_stream<char>* out);
-    future<> run_func(size_t cpuid, size_t req_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
-    future<> schedule(size_t req_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
-    future<> reply(size_t req_id, std::string service, sstring ret);
+    future<> run_func(size_t cpuid, std::string req_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
+    future<> schedule(std::string req_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
+    future<> reply(std::string req_id, std::string service, sstring ret);
 };
 

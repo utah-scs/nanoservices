@@ -32,7 +32,7 @@ function upload_user_mentions(req_id, mentions) {
         let userid = ab2str(DBGet("user_mention_service.js", username));
         results.push([username, userid]);
     }
-    let ret = JSON.stringify(result);
+    let ret = JSON.stringify(results);
     Reply(req_id, ServiceName, ret);
     return results;
 }
