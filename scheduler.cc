@@ -57,7 +57,7 @@ future<> scheduler::reply(std::string req_id, std::string service, sstring ret) 
     req_map.erase(key);
 
     if (states->local) {
-        return states->out->write(std::move(reply_builder::build_direct(ret, ret.size())))
+        return states->out->write(reply_builder::build_direct(ret, ret.size()))
 	    .then([&states] () {
 	        states->out->flush();
                 free(states);

@@ -36,32 +36,29 @@ int main(int argc, char** argv) {
 
     seastar::app_template app;
     return app.run_deprecated(argc, argv, [&] {
-        return async([argc, argv] () {
-            auto& net_server = get_net_server();
-            auto& req_server = get_req_server();
-            auto& sched_server = get_sched_server();
+        auto& net_server = get_net_server();
+        auto& req_server = get_req_server();
+        auto& sched_server = get_sched_server();
 
-            engine().at_exit([&] { return net_server.stop(); });
-            engine().at_exit([&] { return req_server.stop(); });
-            engine().at_exit([&] { return sched_server.stop(); });
+        engine().at_exit([&] { return net_server.stop(); });
+        engine().at_exit([&] { return req_server.stop(); });
+        engine().at_exit([&] { return sched_server.stop(); });
 
-            net_server.start().then([&] {
-                return net_server.invoke_on_all(&network_server::start);
-            }).get();
-
-	    sched_server.start().get();
-
-            req_server.start(argv).then([&req_server] {
+        return net_server.start().then([&] {
+            return net_server.invoke_on_all(&network_server::start);
+        }).then([&] {
+	    return sched_server.start();
+	}).then([&] {
+	        return req_server.start(argv).then([&req_server] {
                 // Start JS thread on all cores
-		req_server.invoke_on_all(&req_service::register_service, std::string("text_service.js"));
-		req_server.invoke_on_all(&req_service::register_service, std::string("url_shorten_service.js"));
-		req_server.invoke_on_all(&req_service::register_service, std::string("user_mention_service.js"));
-		req_server.invoke_on_all(&req_service::register_service, std::string("user_service.js"));
-		req_server.invoke_on_all(&req_service::register_service, std::string("test.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("text_service.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("url_shorten_service.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("user_mention_service.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("user_service.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("test.js"));
                 return req_server.invoke_on_all(&req_service::js);
-            }).get();
-
-       });
+            });
+	});
     });
     V8::Dispose();
     V8::ShutdownPlatform();

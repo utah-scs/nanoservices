@@ -33,8 +33,6 @@ private:
         }
     };
 
-    seastar::gate _request_gate;
-
 public:
     network_server()
     {
