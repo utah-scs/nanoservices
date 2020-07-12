@@ -1,7 +1,10 @@
+sudo apt-get update
 git submodule update --init --recursive
 sudo apt-get install -y build-essential linux-image-extra-virtual
 cd seastar
 sudo ./install-dependencies.sh
-./configure.py --enable-dpdk --mode=release --c-compiler=gcc-5
-ninja
+sudo apt-get install libunistring-dev
+sudo apt-get install libudev-dev
+./configure.py --mode=release
+ninja -C build/release
 cd ..

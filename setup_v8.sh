@@ -6,6 +6,7 @@ cd v8
 sudo apt-get update
 ./build/install-build-deps.sh
 sudo apt-get install libhiredis-dev
+sudo apt-get install python
 git clone https://gn.googlesource.com/gn
 wget https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-linux.zip
 unzip ninja-linux.zip
