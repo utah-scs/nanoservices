@@ -106,7 +106,7 @@ public:
     future<> stop();
     future<> register_service(std::string service);
     future<> js();
-    future<> js_req(args_collection& args, output_stream<char>* out);
+    future<> js_req(args_collection& args, output_stream<char>& out);
     future<> run_func(std::string req_id, std::string service, std::string function, std::string jsargs);
     future<> run_callback(std::string req_id, std::string service, sstring ret);
 };

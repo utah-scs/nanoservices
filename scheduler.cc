@@ -20,16 +20,21 @@ void scheduler::set_req_states(std::string key, void* states) {
     req_map[key] = states;
 }
 
-future<> scheduler::new_req(args_collection& args, output_stream<char>* out) {
+future<> scheduler::new_req(args_collection& args, output_stream<char>& out) {
     auto req_id = std::string(args._command_args[0].c_str()); 
     auto service = std::string(args._command_args[1].c_str());
     auto key = service + req_id + "reply";
     auto new_states = new reply_states;
     new_states->local = true;
-    new_states->out = out;
+    auto f = new_states->res.get_future();
     req_map[key] = (void*)new_states;
 
-    return local_req_server().js_req(std::move(std::ref(args)), out);
+    local_req_server().js_req(std::move(std::ref(args)), out);
+    return f.then([&out, &new_states] (auto&& f) {
+		        out.write(f).then([&new_states] {
+					free(new_states);
+					});
+			});
 }
 
 future<> scheduler::run_func(size_t cpuid, std::string req_id, std::string prev_service, 
@@ -57,11 +62,12 @@ future<> scheduler::reply(std::string req_id, std::string service, sstring ret) 
     req_map.erase(key);
 
     if (states->local) {
-        return states->out->write(reply_builder::build_direct(ret, ret.size()))
-	    .then([&states] () {
-	        states->out->flush();
-                free(states);
-	    });
+        states->res.set_value(std::move(reply_builder::build_direct(ret, ret.size())));
+	return make_ready_future<>();
+        //return states->out->write(std::move(reply_builder::build_direct(msg_ok, msg_ok.size())))
+	//    .then([&states] () {
+        //        free(states);
+	//    });
     } else {
         return req_server.invoke_on(states->prev_cpuid, &req_service::run_callback, req_id, service, ret)
 	    .then([&states] () {

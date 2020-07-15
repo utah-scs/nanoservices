@@ -176,7 +176,7 @@ future<> req_service::run_func(std::string req_id, std::string service, std::str
 }
 
 // Run JavaScript function
-future<> req_service::js_req(args_collection& args, output_stream<char>* out) {
+future<> req_service::js_req(args_collection& args, output_stream<char>& out) {
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -185,7 +185,7 @@ future<> req_service::js_req(args_collection& args, output_stream<char>* out) {
     if (req->args._command_args_count < 3) {
         sstring tmp = to_sstring(msg_syntax_err);
         auto result = reply_builder::build_direct(tmp, tmp.size());
-        return out->write(std::move(result));
+        return out.write(std::move(result));
     }      
 
     auto req_id = std::string(req->args._command_args[0].c_str());

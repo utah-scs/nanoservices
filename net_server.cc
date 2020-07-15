@@ -16,7 +16,7 @@ void network_server::start() {
             auto conn = make_lw_shared<connection>(std::move(fd), addr);
             cout << "Connection from " << addr << " on core " << engine().cpu_id() << "\n";
             do_until([conn] { return conn->_in.eof(); }, [this, conn] {
-                return conn->handler.handle(conn->_in, &conn->_out).then([this, conn] {
+                return conn->handler.handle(conn->_in, conn->_out).then([this, conn] {
                     return conn->_out.flush();
                 });
             }).finally([this, conn] {

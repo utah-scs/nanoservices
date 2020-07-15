@@ -5,7 +5,6 @@ function async_call(req_id, service, func, args) {
                 if (error) {
                     return reject(error);
                 }
-		print("test reply");
                 return resolve(result);
             },
 	    args);

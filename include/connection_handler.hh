@@ -13,6 +13,6 @@ private:
 public:
     connection_handler() {};
     void prepare_request();
-    future<> handle(input_stream<char>& in, output_stream<char>* out);
+    future<> handle(input_stream<char>& in, output_stream<char>& out);
 };
 

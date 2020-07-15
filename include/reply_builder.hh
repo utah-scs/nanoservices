@@ -87,14 +87,14 @@ static future<> build_local(output_stream<char>& out, size_t size)
     return out.write(std::move(*m));
 }
 
-static scattered_message<char> build_direct(const sstring& message, size_t size)
+static sstring build_direct(const sstring& message, size_t size)
 {
-   auto m = scattered_message<char>();
-   m.append_static(msg_batch_tag);
-   m.append(to_sstring(size));
-   m.append_static(msg_crlf);
-   m.append(message);
-   m.append_static(msg_crlf);
+   sstring m;
+   m = m + msg_batch_tag;
+   m = m + to_sstring(size);
+   m = m + msg_crlf;
+   m = m + message;
+   m = m + msg_crlf;
    return m;
 }
 
