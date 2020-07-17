@@ -1,3 +1,4 @@
+%NeverOptimizeFunction(async_call);
 function async_call(req_id, service, func, args) {
     return new Promise(function(resolve, reject) {
         Call(req_id, service, func,
@@ -11,6 +12,7 @@ function async_call(req_id, service, func, args) {
     });
 }
 
+%NeverOptimizeFunction(gen_random_str);
 function gen_random_str(length) {
     let char_map = "abcdefghijklmnopqrstuvwxyzABCDEF"
                     "GHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -21,7 +23,9 @@ function gen_random_str(length) {
     return result;
 }
 
-function upload_urls(req_id, urls) {
+%NeverOptimizeFunction(upload_urls);
+function upload_urls(req_id, arg) {
+    let urls = JSON.parse(arg);
     let length = urls.length;
     let results = [];
     for (let i = 0; i < length; i++) {
@@ -29,7 +33,11 @@ function upload_urls(req_id, urls) {
         results.push([urls[i], shorturl]);
     }
     let ret = JSON.stringify(results);
-    Reply(req_id, ServiceName, ret);
+    async_call(req_id, "compose_post_service.js", "upload_post_urls", ret)
+    .then(
+       result => {Reply(req_id, ServiceName, "ok");}
+    );
+//    Reply(req_id, ServiceName, ret);
     return results;
 }
 

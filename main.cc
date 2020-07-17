@@ -15,8 +15,9 @@ int main(int argc, char** argv) {
     using namespace v8;
     char* tmp[3];
     const char* a1 = "seastarkv";
-    const char* a2 = "--max-old-space-size=100000";
+    const char* a2 = "--max-old-space-size=8192";
     const char* a3 = "--use-strict";
+    //const char* a3 = "--lite-mode";
     tmp[0] = (char*)a1;
     tmp[1] = (char*)a2;
     tmp[2] = (char*)a3;
@@ -32,7 +33,7 @@ int main(int argc, char** argv) {
     V8::SetFlagsFromCommandLine(&c, opt, true);
     v8::internal::FLAG_expose_gc = true;
     v8::internal::FLAG_allow_natives_syntax = true;
-    v8::internal::FLAG_max_old_space_size = 100000;
+    v8::internal::FLAG_max_old_space_size = 8192;
 
     seastar::app_template app;
     return app.run_deprecated(argc, argv, [&] {
@@ -55,6 +56,8 @@ int main(int argc, char** argv) {
 	        req_server.invoke_on_all(&req_service::register_service, std::string("url_shorten_service.js"));
 	        req_server.invoke_on_all(&req_service::register_service, std::string("user_mention_service.js"));
 	        req_server.invoke_on_all(&req_service::register_service, std::string("user_service.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("compose_post_service.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("user_timeline_service.js"));
 	        req_server.invoke_on_all(&req_service::register_service, std::string("test.js"));
                 return req_server.invoke_on_all(&req_service::js);
             });
