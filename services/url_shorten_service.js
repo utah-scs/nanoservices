@@ -1,4 +1,3 @@
-%NeverOptimizeFunction(async_call);
 function async_call(req_id, service, func, args) {
     return new Promise(function(resolve, reject) {
         Call(req_id, service, func,
@@ -12,7 +11,6 @@ function async_call(req_id, service, func, args) {
     });
 }
 
-%NeverOptimizeFunction(gen_random_str);
 function gen_random_str(length) {
     let char_map = "abcdefghijklmnopqrstuvwxyzABCDEF"
                     "GHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -23,7 +21,6 @@ function gen_random_str(length) {
     return result;
 }
 
-%NeverOptimizeFunction(upload_urls);
 function upload_urls(req_id, arg) {
     let urls = JSON.parse(arg);
     let length = urls.length;

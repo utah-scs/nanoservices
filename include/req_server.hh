@@ -60,7 +60,6 @@ private:
         sstring val;
         int tenant_id;
         bool put;
-        lw_shared_ptr<promise<foreign_ptr<lw_shared_ptr<sstring>>>> p;
         rqst(args_collection& a)
             :args(a)
         {}

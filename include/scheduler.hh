@@ -17,10 +17,13 @@ inline scheduler* get_local_sched() {
 struct reply_states {
     bool local;
     size_t prev_cpuid;
-    promise<sstring> res;
     reply_states() {
     }
     ~reply_states() {}
+};
+
+struct local_reply_states : reply_states {
+    promise<sstring> res;
 };
 
 struct callback_states {

@@ -1,4 +1,3 @@
-%NeverOptimizeFunction(async_call);
 function async_call(req_id, service, func, args) {
     return new Promise(function(resolve, reject) {
         Call(req_id, service, func,
@@ -12,7 +11,6 @@ function async_call(req_id, service, func, args) {
     });
 }
 
-%NeverOptimizeFunction(upload_text);
 function upload_text(req_id, val) {
     let user_mentions = val.match(/@[a-zA-Z0-9-_]+/g);
     let urls = val.match(/(http:\/\/|https:\/\/)([a-zA-Z0-9_!~*'().&=+$%-]+)/g);
