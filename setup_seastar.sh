@@ -8,3 +8,5 @@ sudo apt-get install libudev-dev
 ./configure.py --mode=release
 ninja -C build/release
 cd ..
+echo "fs.aio-max-nr = 1048576" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p /etc/sysctl.conf

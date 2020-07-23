@@ -48,7 +48,7 @@ future<> scheduler::run_func(size_t cpuid, std::string req_id, std::string prev_
 
 future<> scheduler::schedule(std::string req_id, std::string prev_service, std::string service, 
 		             std::string function, std::string jsargs) {
-    return run_func(engine().cpu_id(), req_id, prev_service, service, function, jsargs);
+//    return run_func(engine().cpu_id(), req_id, prev_service, service, function, jsargs);
     return sched_server.invoke_on(engine().cpu_id() + 1 , &scheduler::run_func, engine().cpu_id(), req_id, 
 		                  prev_service, service, function, jsargs);
 }
