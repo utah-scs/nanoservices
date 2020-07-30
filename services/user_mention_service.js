@@ -24,15 +24,19 @@ function str2ab(str) {
   return buf;
 }
 
-function upload_user_mentions(req_id, mentions) {
+function upload_user_mentions(req_id, arg) {
+    let mentions = JSON.parse(arg);
     let length = mentions.length;
-    let results = [];
+    let results = new Object();
+    results.usernames = [];
+    results.userids = [];
     for (let i = 0; i < length; i++) {
         let username = mentions[i].substring(1);
         let userid = ab2str(DBGet("user_mention_service.js", username));
-        results.push([username, userid]);
+        results.usernames.push(username);
+        results.userids.push(userid);
     }
     let ret = JSON.stringify(results);
-    Reply(req_id, ServiceName, ret);
-    return results;
+    async_call(req_id, "compose_post_service.js", "upload_user_mentions", ret);
+    Reply(req_id, ServiceName, "ok");
 }

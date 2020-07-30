@@ -14,15 +14,20 @@ function async_call(req_id, service, func, args) {
 function upload_text(req_id, val) {
     let user_mentions = val.match(/@[a-zA-Z0-9-_]+/g);
     let urls = val.match(/(http:\/\/|https:\/\/)([a-zA-Z0-9_!~*'().&=+$%-]+)/g);
-//    async_call(req_id, "user_mention_service.js", "upload_user_mentions", user_mentions)
-//    .then(
-//       result => {print(result);/*Reply(req_id, ServiceName, result);*/}
-//    );
+    let mentions = JSON.stringify(user_mentions);
+    async_call(req_id, "user_mention_service.js", "upload_user_mentions", mentions);
+
     let arg = JSON.stringify(urls);
     async_call(req_id, "url_shorten_service.js", "upload_urls", arg)
     .then(
-       result => {Reply(req_id, ServiceName, "ok");}
+       result => {
+	       let updated_text = val;
+               let updated_urls = JSON.parse(result);
+	       for (let i = 0; i < urls.length; i++) {
+                   updated_text = updated_text.replace(updated_urls.urls[i],
+			                               updated_urls.shorturls[i]);
+	       }
+	       print(updated_text);
+	       Reply(req_id, ServiceName, "ok");}
     );
-
-    return "OK\n";
 }

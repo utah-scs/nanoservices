@@ -27,3 +27,12 @@ function str2ab(str) {
 function user_register(req_id, userid, username) {
     DBSet("user_mention_service.js", username, str2ab(userid));
 }
+
+function upload_creator_with_userid(req_id, user_id, username) {
+    let creator = new Object();
+    creator.username = username;
+    creator.user_id = user_id;
+    let arg = JSON.stringify(creator);
+    async_call(req_id, "compose_post_service.js", "upload_creator", arg);
+    Reply(req_id, ServiceName, "ok");
+}
