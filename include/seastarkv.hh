@@ -43,6 +43,7 @@
 #include <seastar/core/slab.hh>
 #include <seastar/core/align.hh>
 #include <seastar/core/print.hh>
+#include <seastar/core/smp.hh>
 #include <seastar/net/api.hh>
 #include <seastar/net/packet-data-source.hh>
 #include <seastar/util/std-compat.hh>

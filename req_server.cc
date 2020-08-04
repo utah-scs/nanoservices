@@ -85,6 +85,12 @@ future<> req_service::register_service(std::string service) {
 	    String::NewFromUtf8(isolate, service.c_str(), NewStringType::kNormal)
                 .ToLocalChecked()
         );
+	auto cpuid = this_shard_id();
+	global->Set(
+            v8::String::NewFromUtf8(isolate, "CPUID", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+	    v8::Integer::New(isolate, cpuid)
+        );
 
         Local<Context> c = Context::New(isolate, NULL, global);
         Context::Scope contextScope(c);

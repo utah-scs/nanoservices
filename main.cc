@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
 	        req_server.invoke_on_all(&req_service::register_service, std::string("compose_post_service.js"));
 	        req_server.invoke_on_all(&req_service::register_service, std::string("user_timeline_service.js"));
 	        req_server.invoke_on_all(&req_service::register_service, std::string("media_service.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("unique_id_service.js"));
 	        req_server.invoke_on_all(&req_service::register_service, std::string("test.js"));
                 return req_server.invoke_on_all(&req_service::js);
             });
