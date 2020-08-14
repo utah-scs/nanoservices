@@ -17,6 +17,7 @@ using namespace std;
 using namespace seastar;
 using namespace v8;
 using namespace std::chrono;
+using namespace shredder;
 
 distributed<req_service> req_server;
 
@@ -77,7 +78,7 @@ future<> req_service::register_service(std::string service) {
         global->Set(
             v8::String::NewFromUtf8(isolate, "Reply", v8::NewStringType::kNormal)
                 .ToLocalChecked(),
-            v8::FunctionTemplate::New(isolate, reply)
+            v8::FunctionTemplate::New(isolate, shredder::reply)
         );
 	global->Set(
             v8::String::NewFromUtf8(isolate, "ServiceName", v8::NewStringType::kNormal)
@@ -258,6 +259,7 @@ future<> req_service::js() {
     return make_ready_future<>();
 }
 
+namespace shredder {
 // C++ binding for JS functions to get data from hashtable
 void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     db_val ret;
@@ -401,4 +403,5 @@ void reply(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::String::Utf8Value str2(isolate, args[2]);
     auto ret = to_sstring(ToCString(str2));
     get_local_sched()->reply(req_id, service, ret);
+}
 }

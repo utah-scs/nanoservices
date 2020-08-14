@@ -25,6 +25,7 @@ inline unsigned get_cpu(const redis_key& key) {
     return key.hash() % smp::count;
 }
 
+namespace shredder {
 void db_get(const v8::FunctionCallbackInfo<v8::Value>& args);
 void db_set(const v8::FunctionCallbackInfo<v8::Value>& args);
 void db_del(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -36,6 +37,7 @@ void load_fb_graph(const v8::FunctionCallbackInfo<v8::Value>& args);
 void call_function(const v8::FunctionCallbackInfo<v8::Value>& args);
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args);
 void reply(const v8::FunctionCallbackInfo<v8::Value>& args);
+}
 
 using message = scattered_message<char>;
 class req_service {
