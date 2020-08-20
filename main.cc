@@ -52,14 +52,7 @@ int main(int argc, char** argv) {
 	}).then([&] {
 	        return req_server.start(argv).then([&req_server] {
                 // Start JS thread on all cores
-	        req_server.invoke_on_all(&req_service::register_service, std::string("text_service.js"));
-	        req_server.invoke_on_all(&req_service::register_service, std::string("url_shorten_service.js"));
-	        req_server.invoke_on_all(&req_service::register_service, std::string("user_mention_service.js"));
-	        req_server.invoke_on_all(&req_service::register_service, std::string("user_service.js"));
-	        req_server.invoke_on_all(&req_service::register_service, std::string("compose_post_service.js"));
-	        req_server.invoke_on_all(&req_service::register_service, std::string("user_timeline_service.js"));
-	        req_server.invoke_on_all(&req_service::register_service, std::string("media_service.js"));
-	        req_server.invoke_on_all(&req_service::register_service, std::string("test.js"));
+	        req_server.invoke_on_all(&req_service::register_service, std::string("user.js"));
                 return req_server.invoke_on_all(&req_service::js);
             });
 	});

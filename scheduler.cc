@@ -20,16 +20,14 @@ void scheduler::set_req_states(std::string key, void* states) {
     req_map[key] = states;
 }
 
-future<> scheduler::new_req(args_collection& args, output_stream<char>& out) {
-    auto req_id = std::string(args._command_args[0].c_str()); 
-    auto service = std::string(args._command_args[1].c_str());
+future<> scheduler::new_req(std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out) {
     auto key = service + req_id + "reply";
     auto new_states = new local_reply_states;
     new_states->local = true;
     auto f = new_states->res.get_future();
     req_map[key] = (void*)new_states;
 
-    local_req_server().js_req(std::move(std::ref(args)), out);
+    local_req_server().js_req(req_id, service, function, args, out);
     return f.then([&out] (auto&& f) {
 		        out.write(f);
 			});

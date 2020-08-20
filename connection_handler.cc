@@ -2,8 +2,17 @@
 #include "include/req_server.hh"
 #include "include/scheduler.hh"
 #include "include/reply_builder.hh"
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <string>
 
 using namespace seastar;
+using namespace boost::uuids;
+namespace pt = boost::property_tree;
+
 /*void connection_handler::prepare_request()
 {
     _request_args._command_args_count = _parser._args_count - 1;
@@ -135,11 +144,46 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
 //            generate_error_reply_and_close(std::move(req), reply::status_type::payload_too_large, std::move(msg));
 //            return make_ready_future<>();
 //        }
-        return read_request_body(in, std::move(req)).then([this] (std::unique_ptr<httpd::request> req) {
+        return read_request_body(in, std::move(req)).then([this, &out] (std::unique_ptr<httpd::request> req) {
+	    auto gen = random_generator();
+	    auto req_id = to_string(gen());
+
 	    sstring url = set_query_param(*req.get());
-	    sstring service = url.substr(1);
-	    sstring header = req->get_header("Authorization");
-	    cout << "get request " << service << " " << header << "\n";
+	    size_t split = url.substr(1).find('/');
+	    
+	    sstring service = url.substr(1, split);
+	    sstring function = url.substr(split + 2);
+	    sstring auth = req->get_header("Authorization");
+	    sstring host = req->get_header("Host");
+
+	    pt::ptree root;
+	    pt::ptree headers;
+	    pt::ptree parameters;
+
+	    for (auto it = req->_headers.begin(); it != req->_headers.end(); ++it) {
+	        headers.put(it->first.c_str(), it->second.c_str());
+	    }
+
+	    for (auto it = req->query_parameters.begin(); it != req->query_parameters.end(); ++it) {
+	        parameters.put(it->first.c_str(), it->second.c_str());
+	    }
+
+	    root.add_child("headers", headers);
+	    root.add_child("parameters", parameters);
+	    root.put("content", req->content.c_str());
+	    std::stringstream args;
+	    pt::write_json(args, root);
+	    cout << args.str() << "\n";
+
+	    cout << "get request " << service << "\n";
+	    cout << "url " << req->_url << "\n";
+	    cout << "service " << service << "\n";
+	    cout << "function " << function << "\n";
+	    cout << "host " << host << "\n";
+	    cout << "auth " << auth << "\n";
+	    cout << "req_id " << req_id << "\n";
+
+	    return get_local_sched()->new_req(req_id, service, function, args.str(), out);
         });
 
         std::abort();
