@@ -47,7 +47,7 @@ public:
     }
     scheduler() {};
     void new_service(std::string service);
-    future<> new_req(std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
+    future<> new_req(std::unique_ptr<request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
     future<> run_func(size_t cpuid, std::string req_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
     future<> schedule(std::string req_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
     future<> reply(std::string req_id, std::string service, sstring ret);

@@ -182,8 +182,9 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
 	    cout << "host " << host << "\n";
 	    cout << "auth " << auth << "\n";
 	    cout << "req_id " << req_id << "\n";
+	    cout << "method " << req->_method << "\n";
 
-	    return get_local_sched()->new_req(req_id, service, function, args.str(), out);
+	    return get_local_sched()->new_req(std::move(req), req_id, service + ".js", function, args.str(), out);
         });
 
         std::abort();

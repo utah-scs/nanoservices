@@ -20,17 +20,84 @@ void scheduler::set_req_states(std::string key, void* states) {
     req_map[key] = states;
 }
 
-future<> scheduler::new_req(std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out) {
+// Write the current date in the specific "preferred format" defined in
+// RFC 7231, Section 7.1.1.1, a.k.a. IMF (Internet Message Format) fixdate.
+// For example: Sun, 06 Nov 1994 08:49:37 GMT
+static sstring http_date() {
+    auto t = ::time(nullptr);
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    // Using strftime() would have been easier, but unfortunately relies on
+    // the current locale, and we need the month and day names in English.
+    static const char* days[] = {
+        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+    };
+    static const char* months[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+    return seastar::format("{}, {:02d} {} {} {:02d}:{:02d}:{:02d} GMT",
+        days[tm.tm_wday], tm.tm_mday, months[tm.tm_mon], 1900 + tm.tm_year,
+        tm.tm_hour, tm.tm_min, tm.tm_sec);
+}
+
+future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out) {
     auto key = service + req_id + "reply";
     auto new_states = new local_reply_states;
     new_states->local = true;
     auto f = new_states->res.get_future();
     req_map[key] = (void*)new_states;
 
+    auto resp = std::make_unique<httpd::reply>();
+    bool conn_keep_alive = false;
+    bool conn_close = false;
+    auto it = req->_headers.find("Connection");
+    if (it != req->_headers.end()) {
+        if (it->second == "Keep-Alive") {
+            conn_keep_alive = true;
+        } else if (it->second == "Close") {
+            conn_close = true;
+        }
+    }
+    bool should_close;
+    // TODO: Handle HTTP/2.0 when it releases
+    resp->set_version(req->_version);
+
+    if (req->_version == "1.0") {
+        if (conn_keep_alive) {
+            resp->_headers["Connection"] = "Keep-Alive";
+        }
+        should_close = !conn_keep_alive;
+    } else if (req->_version == "1.1") {
+        should_close = conn_close;
+    } else {
+        // HTTP/0.9 goes here
+        should_close = true;
+    }
+    sstring version = req->_version;
+    resp->set_version(version).done();
+    resp->_headers["Server"] = "Seastar httpd";
+    resp->_headers["Date"] = http_date();
+
     local_req_server().js_req(req_id, service, function, args, out);
-    return f.then([&out] (auto&& f) {
-		        out.write(f);
-			});
+    return f.then([&out, &resp] (auto&& res) {
+	resp->set_status(reply::status_type::ok, res);
+        resp->_headers["Content-Length"] = to_sstring(
+            resp->_content.size());
+        return out.write(resp->_response_line.data(),
+                resp->_response_line.size()).then([&out, &resp] {
+            return do_for_each(resp->_headers, [&out](auto& h) {
+                return out.write(h.first + ": " + h.second + "\r\n");
+            });
+        }).then([&out] {
+            return out.write("\r\n", 2);
+        }).then([&out, &resp] {
+            return out.write(resp->_content.data(),
+                resp->_content.size());
+        }).then([&out] {
+            return out.flush();
+        });
+    });
 }
 
 future<> scheduler::run_func(size_t cpuid, std::string req_id, std::string prev_service, 

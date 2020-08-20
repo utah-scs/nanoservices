@@ -184,7 +184,6 @@ future<> req_service::js_req(std::string req_id, sstring service, sstring functi
 
     // Switch to V8 context of this service
     std::string serv(service.c_str());
-    serv = serv + ".js";
     Local<Context> context = Local<Context>::New(isolate, contexts[ctx_map[serv]]);
     Context::Scope context_scope(context);
     current_context = &context;
