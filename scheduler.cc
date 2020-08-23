@@ -80,8 +80,10 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
     resp->_headers["Date"] = http_date();
 
     local_req_server().js_req(req_id, service, function, args, out);
-    return f.then([&out, &resp] (auto&& res) {
+    return f.then([&out, resp = std::move(resp)] (auto&& res) {
 	resp->set_status(reply::status_type::ok, res);
+	resp->done();
+	resp->_response_line = resp->response_line();
         resp->_headers["Content-Length"] = to_sstring(
             resp->_content.size());
         return out.write(resp->_response_line.data(),
@@ -126,7 +128,7 @@ future<> scheduler::reply(std::string req_id, std::string service, sstring ret) 
 
     if (states->local) {
 	auto s = (struct local_reply_states*)states;
-        s->res.set_value(std::move(reply_builder::build_direct(ret, ret.size())));
+        s->res.set_value(ret);
 	return make_ready_future<>();
         //return states->out->write(std::move(reply_builder::build_direct(msg_ok, msg_ok.size())))
 	//    .then([&states] () {
