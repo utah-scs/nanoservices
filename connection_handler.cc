@@ -173,16 +173,6 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
 	    root.put("content", req->content.c_str());
 	    std::stringstream args;
 	    pt::write_json(args, root);
-	    cout << args.str() << "\n";
-
-	    cout << "get request " << service << "\n";
-	    cout << "url " << req->_url << "\n";
-	    cout << "service " << service << "\n";
-	    cout << "function " << function << "\n";
-	    cout << "host " << host << "\n";
-	    cout << "auth " << auth << "\n";
-	    cout << "req_id " << req_id << "\n";
-	    cout << "method " << req->_method << "\n";
 
 	    return get_local_sched()->new_req(std::move(req), req_id, service + ".js", function, args.str(), out);
         });
