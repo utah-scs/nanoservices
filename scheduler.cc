@@ -1,8 +1,12 @@
 #include "include/scheduler.hh"
 #include "include/reply_builder.hh"
 #include "include/req_server.hh"
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <string>
 
 using namespace seastar;
+namespace pt = boost::property_tree;
 
 distributed<scheduler> sched_server;
 
@@ -81,7 +85,7 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
 
     local_req_server().js_req(req_id, service, function, args, out);
     return f.then([&out, resp = std::move(resp)] (auto&& res) {
-	resp->set_status(reply::status_type::ok, res);
+	resp->set_status(res._status, res._message);
 	resp->done();
 	resp->_response_line = resp->response_line();
         resp->_headers["Content-Length"] = to_sstring(
@@ -120,7 +124,16 @@ future<> scheduler::schedule(std::string req_id, std::string prev_service, std::
 //		                  prev_service, service, function, jsargs);
 }
 
-future<> scheduler::reply(std::string req_id, std::string service, sstring ret) {
+future<> scheduler::reply(std::string req_id, std::string service, std::string ret) {
+    pt::ptree pt;
+    std::istringstream is(ret);
+    read_json(is, pt);
+
+    struct js_reply rep;
+
+    rep._status = (httpd::reply::status_type)pt.get<int>("_status");
+    rep._message = pt.get<std::string>("_message");
+
     auto key = service + req_id + "reply";
     auto states = (struct reply_states*)req_map[key];
 
@@ -128,7 +141,7 @@ future<> scheduler::reply(std::string req_id, std::string service, sstring ret) 
 
     if (states->local) {
 	auto s = (struct local_reply_states*)states;
-        s->res.set_value(ret);
+        s->res.set_value(rep);
 	return make_ready_future<>();
         //return states->out->write(std::move(reply_builder::build_direct(msg_ok, msg_ok.size())))
 	//    .then([&states] () {

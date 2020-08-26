@@ -387,7 +387,7 @@ void reply(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::String::Utf8Value str1(isolate, args[1]);
     auto service = std::string(*str1);
     v8::String::Utf8Value str2(isolate, args[2]);
-    auto ret = to_sstring(ToCString(str2));
+    auto ret = std::string(*str2);
     get_local_sched()->reply(req_id, service, ret);
 }
 }

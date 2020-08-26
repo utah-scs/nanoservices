@@ -127,7 +127,7 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
     return in.consume(_parser).then([this, &in, &out] () -> future<> {
 
         if (_parser.eof()) {
-            printf("Parser eof\n");
+       //     printf("Parser eof\n");
             return make_ready_future<>();
         }
         std::unique_ptr<httpd::request> req = _parser.get_parsed_request();
