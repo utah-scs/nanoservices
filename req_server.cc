@@ -12,6 +12,7 @@
 #include <chrono>
 #include <string>
 #include <functional>
+#include <boost/uuid/detail/sha1.hpp>
 
 using namespace std;
 using namespace seastar;
@@ -80,6 +81,12 @@ future<> req_service::register_service(std::string service) {
                 .ToLocalChecked(),
             v8::FunctionTemplate::New(isolate, shredder::reply)
         );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "Sha1", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, shredder::sha1)
+        );
+
 	global->Set(
             v8::String::NewFromUtf8(isolate, "ServiceName", v8::NewStringType::kNormal)
                 .ToLocalChecked(),
@@ -389,5 +396,27 @@ void reply(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::String::Utf8Value str2(isolate, args[2]);
     auto ret = std::string(*str2);
     get_local_sched()->reply(req_id, service, ret);
+}
+
+void sha1(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate * isolate = args.GetIsolate();
+    HandleScope handle_scope(isolate);    
+
+    v8::String::Utf8Value arg(isolate, args[0]);
+    auto str = std::string(*arg);
+
+    boost::uuids::detail::sha1 s;
+    char hash[41] = {0};
+    s.process_bytes(str.c_str(), str.size());
+    unsigned int digest[5];
+    s.get_digest(digest);
+    for (int i = 0; i < 5; i++)
+    {
+        std::sprintf(hash + (i << 3), "%08x", digest[i]);
+    }
+
+    args.GetReturnValue().Set(
+    v8::String::NewFromUtf8(args.GetIsolate(), hash,
+                            v8::NewStringType::kNormal).ToLocalChecked());
 }
 }
