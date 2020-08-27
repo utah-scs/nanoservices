@@ -13,6 +13,7 @@
 #include <string>
 #include <functional>
 #include <boost/uuid/detail/sha1.hpp>
+#include <boost/beast/core/detail/base64.hpp>
 
 using namespace std;
 using namespace seastar;
@@ -85,6 +86,11 @@ future<> req_service::register_service(std::string service) {
             v8::String::NewFromUtf8(isolate, "Sha1", v8::NewStringType::kNormal)
                 .ToLocalChecked(),
             v8::FunctionTemplate::New(isolate, shredder::sha1)
+        );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "Base64Decode", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, shredder::base64_decode)
         );
 
 	global->Set(
@@ -417,6 +423,21 @@ void sha1(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
     args.GetReturnValue().Set(
     v8::String::NewFromUtf8(args.GetIsolate(), hash,
+                            v8::NewStringType::kNormal).ToLocalChecked());
+}
+
+void base64_decode(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate * isolate = args.GetIsolate();
+    HandleScope handle_scope(isolate);    
+
+    v8::String::Utf8Value arg(isolate, args[0]);
+    auto tmp = std::string(*arg);
+    std::string dest;
+    dest.resize(boost::beast::detail::base64::decoded_size(tmp.size()));
+    boost::beast::detail::base64::decode(&dest[0], tmp.c_str(), tmp.size());
+
+    args.GetReturnValue().Set(
+    v8::String::NewFromUtf8(args.GetIsolate(), dest.c_str(),
                             v8::NewStringType::kNormal).ToLocalChecked());
 }
 }

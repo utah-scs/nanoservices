@@ -38,6 +38,7 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args);
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args);
 void reply(const v8::FunctionCallbackInfo<v8::Value>& args);
 void sha1(const v8::FunctionCallbackInfo<v8::Value>& args);
+void base64_decode(const v8::FunctionCallbackInfo<v8::Value>& args);
 }
 
 using message = scattered_message<char>;
