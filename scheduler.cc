@@ -52,7 +52,7 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
     auto f = new_states->res.get_future();
     req_map[key] = (void*)new_states;
 
-    auto resp = std::make_unique<httpd::reply>();
+    auto resp = std::make_shared<httpd::reply>();
     bool conn_keep_alive = false;
     bool conn_close = false;
     auto it = req->_headers.find("Connection");
@@ -91,13 +91,13 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
         resp->_headers["Content-Length"] = to_sstring(
             resp->_content.size());
         return out.write(resp->_response_line.data(),
-                resp->_response_line.size()).then([&out, &resp] {
+                resp->_response_line.size()).then([&out, resp = std::move(resp)] {
             return do_for_each(resp->_headers, [&out](auto& h) {
                 return out.write(h.first + ": " + h.second + "\r\n");
             });
         }).then([&out] {
             return out.write("\r\n", 2);
-        }).then([&out, &resp] {
+        }).then([&out, resp = std::move(resp)] {
             return out.write(resp->_content.data(),
                 resp->_content.size());
         }).then([&out] {

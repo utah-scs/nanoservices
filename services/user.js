@@ -21,7 +21,13 @@ function init_db(req_id, args) {
     user.password = Sha1("password" + user.salt);
     
     DBSet("user.js", "user", str2ab(JSON.stringify(user)));
+    let rep = new Object();
+    rep._status = 200;
+    rep._message = "ok";
+    let ret = JSON.stringify(rep);
+    Reply(req_id, ServiceName, ret);
 }
+
 function login(req_id, args) {
     let obj = JSON.parse(args);
     let str = Base64Decode(obj.headers.Authorization.substr(6));
