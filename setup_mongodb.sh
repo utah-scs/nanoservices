@@ -16,3 +16,4 @@ cmake ..                                \
 cmake --build .
 sudo cmake --build . --target install
 cd ../..
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib

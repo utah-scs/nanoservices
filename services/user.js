@@ -47,3 +47,24 @@ function login(req_id, args) {
     let ret = JSON.stringify(rep);
     Reply(req_id, ServiceName, ret);
 }
+
+function mongo_login(req_id, args) {
+    let obj = JSON.parse(args);
+    let str = Base64Decode(obj.headers.Authorization.substr(6));
+    let auth = str.split(":");
+    let username = auth[0];
+    let password = auth[1];
+
+    let user = JSON.parse(MongoGet("users", "customers", "user"));
+    let pw = Sha1(password + user.salt);
+    let rep = new Object();
+    if (pw != user.password) {
+        rep._status = 401;
+        rep._message = "Authorization failed.";
+    } else {
+        rep._status = 200;
+        rep._message = "ok";
+    }
+    let ret = JSON.stringify(rep);
+    Reply(req_id, ServiceName, ret);
+}

@@ -92,12 +92,16 @@ future<> req_service::register_service(std::string service) {
                 .ToLocalChecked(),
             v8::FunctionTemplate::New(isolate, shredder::base64_decode)
         );
-
 	global->Set(
             v8::String::NewFromUtf8(isolate, "ServiceName", v8::NewStringType::kNormal)
                 .ToLocalChecked(),
 	    String::NewFromUtf8(isolate, service.c_str(), NewStringType::kNormal)
                 .ToLocalChecked()
+        );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "MongoGet", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::FunctionTemplate::New(isolate, shredder::mongo_get)
         );
 
         Local<Context> c = Context::New(isolate, NULL, global);
@@ -428,7 +432,7 @@ void sha1(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
 void base64_decode(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate * isolate = args.GetIsolate();
-    HandleScope handle_scope(isolate);    
+    HandleScope handle_scope(isolate);
 
     v8::String::Utf8Value arg(isolate, args[0]);
     auto tmp = std::string(*arg);
@@ -438,6 +442,29 @@ void base64_decode(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
     args.GetReturnValue().Set(
     v8::String::NewFromUtf8(args.GetIsolate(), dest.c_str(),
+                            v8::NewStringType::kNormal).ToLocalChecked());
+}
+
+void mongo_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    Isolate * isolate = args.GetIsolate();
+    HandleScope handle_scope(isolate);    
+
+    v8::String::Utf8Value arg0(isolate, args[0]);
+    auto db = std::string(*arg0);
+    v8::String::Utf8Value arg1(isolate, args[1]);
+    auto collection = std::string(*arg1);
+    v8::String::Utf8Value arg2(isolate, args[2]);
+    auto username= std::string(*arg2);
+
+    auto col = local_req_server().mongocli->database(db)[collection];
+    bsoncxx::stdx::optional<bsoncxx::document::value> maybe_result =
+      col.find_one(bsoncxx::builder::stream::document{} 
+		      << "username" 
+		      << username 
+		      << bsoncxx::builder::stream::finalize);
+
+    args.GetReturnValue().Set(
+    v8::String::NewFromUtf8(args.GetIsolate(), bsoncxx::to_json(*maybe_result).c_str(),
                             v8::NewStringType::kNormal).ToLocalChecked());
 }
 }

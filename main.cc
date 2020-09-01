@@ -29,6 +29,8 @@ int main(int argc, char** argv) {
     V8::InitializePlatform(platform.get());
     V8::Initialize();
 
+    mongocxx::instance instance{};
+
     int c = 3;
     V8::SetFlagsFromCommandLine(&c, opt, true);
     v8::internal::FLAG_expose_gc = true;

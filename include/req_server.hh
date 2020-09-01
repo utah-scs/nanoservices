@@ -39,6 +39,7 @@ void new_database(const v8::FunctionCallbackInfo<v8::Value>& args);
 void reply(const v8::FunctionCallbackInfo<v8::Value>& args);
 void sha1(const v8::FunctionCallbackInfo<v8::Value>& args);
 void base64_decode(const v8::FunctionCallbackInfo<v8::Value>& args);
+void mongo_get(const v8::FunctionCallbackInfo<v8::Value>& args);
 }
 
 using message = scattered_message<char>;
@@ -96,6 +97,7 @@ private:
 
 public:
     Isolate* isolate;
+    mongocxx::client *mongocli;
 
     req_service(char** a)
         : argv(a)
@@ -103,6 +105,7 @@ public:
         create_params.array_buffer_allocator =
             v8::ArrayBuffer::Allocator::NewDefaultAllocator();
         isolate = Isolate::New(create_params);
+        mongocli = new mongocxx::client(mongocxx::uri{"mongodb://h0.nano2.sandstorm-pg0.utah.cloudlab.us:30012"});
     }
 
     future<> start();
