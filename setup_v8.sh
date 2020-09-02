@@ -5,13 +5,13 @@ gclient sync
 cd v8
 sudo apt-get update
 ./build/install-build-deps.sh
-sudo apt-get install libhiredis-dev
-sudo apt-get install python
+sudo apt-get install -y libhiredis-dev
+sudo apt-get install -y python
 git clone https://gn.googlesource.com/gn
 wget https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-linux.zip
 unzip ninja-linux.zip
 sudo cp ninja /usr/local/bin/
-sudo apt-get install clang
+sudo apt-get install -y clang
 cd gn
 git reset --hard 6c484875cdcbfeba43a4fae0106a1be8ca65eff1
 python build/gen.py

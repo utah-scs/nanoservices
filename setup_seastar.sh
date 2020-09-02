@@ -3,8 +3,8 @@ git submodule update --init --recursive
 sudo apt-get install -y build-essential linux-image-extra-virtual
 cd seastar
 sudo ./install-dependencies.sh
-sudo apt-get install libunistring-dev
-sudo apt-get install libudev-dev
+sudo apt-get install -y libunistring-dev
+sudo apt-get install -y libudev-dev
 ./configure.py --mode=release
 ninja -C build/release
 cd ..
