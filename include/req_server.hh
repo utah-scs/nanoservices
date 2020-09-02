@@ -51,7 +51,6 @@ private:
     Global<Context> contexts[NUM_SERVICES];
     unsigned unallocated_ctx = 0;
     unordered_map<std::string, unsigned> ctx_map;
-    char** argv;
     Isolate::CreateParams create_params;
     Global<ObjectTemplate> args_templ;
 
@@ -99,13 +98,12 @@ public:
     Isolate* isolate;
     mongocxx::client *mongocli;
 
-    req_service(char** a)
-        : argv(a)
+    req_service(sstring mongodb)
     {
         create_params.array_buffer_allocator =
             v8::ArrayBuffer::Allocator::NewDefaultAllocator();
         isolate = Isolate::New(create_params);
-        mongocli = new mongocxx::client(mongocxx::uri{"mongodb://h0.nano2.sandstorm-pg0.utah.cloudlab.us:30012"});
+        mongocli = new mongocxx::client(mongocxx::uri{("mongodb://" + mongodb).c_str()});
     }
 
     future<> start();

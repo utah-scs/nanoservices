@@ -10,6 +10,7 @@
 #define VERSION_STRING PLATFORM " " VERSION
 
 using namespace seastar;
+namespace bpo = boost::program_options;
 
 int main(int argc, char** argv) {
     using namespace v8;
@@ -38,8 +39,13 @@ int main(int argc, char** argv) {
     v8::internal::FLAG_max_old_space_size = 8192;
 
     seastar::app_template app;
+    app.add_options()("mongodb", bpo::value<sstring>()->default_value("h0.nano.sandstorm-pg0.utah.cloudlab.us:30012"), "MongoDB Server port");
+
     return app.run_deprecated(argc, argv, [&] {
-        auto& net_server = get_net_server();
+	auto&& config = app.configuration();
+	auto mongodb = config["mongodb"].as<sstring>();
+        
+	auto& net_server = get_net_server();
         auto& req_server = get_req_server();
         auto& sched_server = get_sched_server();
 
@@ -52,9 +58,9 @@ int main(int argc, char** argv) {
         }).then([&] {
 	    return sched_server.start();
 	}).then([&] {
-	        return req_server.start(argv).then([&req_server] {
-                // Start JS thread on all cores
+	        return req_server.start(mongodb).then([&req_server] {
 	        req_server.invoke_on_all(&req_service::register_service, std::string("user.js"));
+                // Start JS thread on all cores
                 return req_server.invoke_on_all(&req_service::js);
             });
 	});
