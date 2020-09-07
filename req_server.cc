@@ -22,12 +22,17 @@ using namespace std::chrono;
 using namespace shredder;
 
 distributed<req_service> req_server;
+extern mongocxx::pool *pool;
 
 static const char* ToCString(const v8::String::Utf8Value& value) {
     return *value ? *value : "<string conversion failed>";
 }
 
-future<> req_service::start() {
+future<> req_service::start(void) {
+    create_params.array_buffer_allocator =
+        v8::ArrayBuffer::Allocator::NewDefaultAllocator();
+    isolate = Isolate::New(create_params);
+
     return make_ready_future<>();
 }
 future<> req_service::stop() {
@@ -456,7 +461,8 @@ void mongo_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::String::Utf8Value arg2(isolate, args[2]);
     auto username= std::string(*arg2);
 
-    auto col = local_req_server().mongocli->database(db)[collection];
+    auto cli = pool->acquire();
+    auto col = cli->database(db)[collection];
     bsoncxx::stdx::optional<bsoncxx::document::value> maybe_result =
       col.find_one(bsoncxx::builder::stream::document{} 
 		      << "username" 

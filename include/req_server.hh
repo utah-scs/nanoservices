@@ -95,16 +95,13 @@ private:
     }
 
 public:
-    Isolate* isolate;
-    mongocxx::client *mongocli;
-
-    req_service(sstring mongodb)
+    req_service(void)
     {
-        create_params.array_buffer_allocator =
-            v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-        isolate = Isolate::New(create_params);
-        mongocli = new mongocxx::client(mongocxx::uri{("mongodb://" + mongodb).c_str()});
     }
+
+    Isolate* isolate;
+    mongocxx::client *cli;
+    mongocxx::client* get_mongo_client(){return cli;}
 
     future<> start();
     future<> stop();

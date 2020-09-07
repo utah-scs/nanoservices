@@ -56,7 +56,8 @@ function mongo_login(req_id, args) {
     let password = auth[1];
 
     let user = JSON.parse(MongoGet("users", "customers", "user"));
-    let pw = Sha1(password + user.salt);
+    let salt = user.salt;
+    let pw = Sha1(password + salt);
     let rep = new Object();
     if (pw != user.password) {
         rep._status = 401;

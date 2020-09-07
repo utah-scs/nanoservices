@@ -11,6 +11,8 @@
 
 using namespace seastar;
 namespace bpo = boost::program_options;
+auto instance = new mongocxx::instance();
+mongocxx::pool *pool;
 
 int main(int argc, char** argv) {
     using namespace v8;
@@ -30,8 +32,6 @@ int main(int argc, char** argv) {
     V8::InitializePlatform(platform.get());
     V8::Initialize();
 
-    mongocxx::instance instance{};
-
     int c = 3;
     V8::SetFlagsFromCommandLine(&c, opt, true);
     v8::internal::FLAG_expose_gc = true;
@@ -43,8 +43,10 @@ int main(int argc, char** argv) {
 
     return app.run_deprecated(argc, argv, [&] {
 	auto&& config = app.configuration();
-	auto mongodb = config["mongodb"].as<sstring>();
-        
+        auto mongodb = config["mongodb"].as<sstring>();
+	mongocxx::uri uri{("mongodb://" + mongodb).c_str()};
+	pool = new mongocxx::pool(uri);
+       
 	auto& net_server = get_net_server();
         auto& req_server = get_req_server();
         auto& sched_server = get_sched_server();
@@ -58,10 +60,12 @@ int main(int argc, char** argv) {
         }).then([&] {
 	    return sched_server.start();
 	}).then([&] {
-	        return req_server.start(mongodb).then([&req_server] {
-	        req_server.invoke_on_all(&req_service::register_service, std::string("user.js"));
-                // Start JS thread on all cores
-                return req_server.invoke_on_all(&req_service::js);
+	        return req_server.start().then([&] {
+		    return req_server.invoke_on_all(&req_service::start).then([&req_server] {
+	            req_server.invoke_on_all(&req_service::register_service, std::string("user.js"));
+                    // Start JS thread on all cores
+                    return req_server.invoke_on_all(&req_service::js);
+		});
             });
 	});
     });
