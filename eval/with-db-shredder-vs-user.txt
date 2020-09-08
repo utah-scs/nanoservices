@@ -22,6 +22,8 @@ NOTE1: shredder seems to have a bug on using just half the CPU capability.
 NOTE2: I tried to increase the concurrency count to 1000 for shredder. but it crashes shredder. Too many files opened.
         licai@ctl:/mnt/extra/nano/deploy$ ERROR 2020-09-08 01:20:40,910 [shard 0] seastar - Exiting on unhandled exception: std::system_error (error system:24, accept4: Too many open files)
         shredder: /mnt/extra/nanoservices/seastar/include/seastar/core/sharded.hh:717: Service& seastar::sharded<T>::local() [with Service = scheduler]: Assertion `local_is_initialized()' failed.
+NOTE3: forgot to mention. I used two compute nodes for user services. So this may be the reason when I use multiple containers the throughput is higher.
+        I should have only use one compute node.
 
 cmd:
 for user:
