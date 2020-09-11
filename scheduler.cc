@@ -4,6 +4,11 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <string>
+#include <seastar/core/metrics_registration.hh>
+#include <seastar/core/metrics.hh>
+#include <seastar/core/metrics_types.hh>
+#include <seastar/core/metrics_api.hh>
+#include <seastar/core/scheduling.hh>
 
 using namespace seastar;
 namespace pt = boost::property_tree;
@@ -106,40 +111,74 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
     });
 }
 
-future<> scheduler::run_func(size_t cpuid, std::string req_id, std::string prev_service, 
+future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string prev_service, 
 		             std::string service, std::string function, std::string jsargs) {
     auto new_states = new reply_states;
     new_states->local = false;
-    new_states->prev_cpuid = cpuid;
+    new_states->prev_cpuid = prev_cpu;
     auto key = service + req_id + "reply";
     req_map[key] = (void*)new_states;
 
     return local_req_server().run_func(req_id, service, function, jsargs);
 }
 
+/**
+ * This function return the different name label values
+ *  for the named metric.
+ *
+ *  @note: If the statistic or label doesn't exist, the test
+ *  that calls this function will fail.
+ *
+ * @param metric_name - the metric name
+ * @param label_name - the label name
+ * @return a set containing all the different values
+ *         of the label.
+ */
+static double get_sched_queue_length(void) {
+    namespace smi = seastar::metrics::impl;
+    auto all_metrics = smi::get_values();
+    auto& values = all_metrics->values;
+    const auto& all_metadata = *all_metrics->metadata;
+    for (int i = 0; i < all_metadata.size(); i++) {
+	auto mt = all_metadata[i].metrics.begin();
+        for (auto v : values[i]) {
+            if (mt->id.full_name() == "scheduler_queue_length" && v.type() == seastar::metrics::impl::data_type::GAUGE) {
+                double tmpd = v.d();
+		const auto l = mt->id.labels().find("group");
+                if (l->second == "main") {
+                    return tmpd;
+		}
+            }
+	    mt++;
+        }
+    }
+    return 0;
+}
+
 future<> scheduler::schedule(std::string req_id, std::string prev_service, std::string service, 
 		             std::string function, std::string jsargs) {
+    cout << get_sched_queue_length() << "\n"; 
     return run_func(engine().cpu_id(), req_id, prev_service, service, function, jsargs);
 //    return sched_server.invoke_on(engine().cpu_id() + 1 , &scheduler::run_func, engine().cpu_id(), req_id, 
 //		                  prev_service, service, function, jsargs);
 }
 
 future<> scheduler::reply(std::string req_id, std::string service, std::string ret) {
-    pt::ptree pt;
-    std::istringstream is(ret);
-    read_json(is, pt);
-
-    struct js_reply rep;
-
-    rep._status = (httpd::reply::status_type)pt.get<int>("_status");
-    rep._message = pt.get<std::string>("_message");
-
     auto key = service + req_id + "reply";
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
 
     if (states->local) {
+        pt::ptree pt;
+        std::istringstream is(ret);
+        read_json(is, pt);
+ 
+        struct js_reply rep;
+ 
+        rep._status = (httpd::reply::status_type)pt.get<int>("_status");
+        rep._message = pt.get<std::string>("_message");
+
 	auto s = (struct local_reply_states*)states;
         s->res.set_value(rep);
 	return make_ready_future<>();
