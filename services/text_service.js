@@ -27,7 +27,6 @@ function upload_text(req_id, val) {
                    updated_text = updated_text.replace(updated_urls.urls[i],
 			                               updated_urls.shorturls[i]);
 	       }
-	       print(updated_text);
 	       Reply(req_id, ServiceName, "ok");}
     );
 }
