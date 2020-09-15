@@ -25,28 +25,28 @@ function str2ab(str) {
 }
 
 function upload_urls(req_id, urls) {
-    print("upload urls");
+//    print("upload urls");
     let key = req_id + "urls";
     DBSet("compose_post_service.js", key, str2ab(urls));
     Reply(req_id, ServiceName, "ok");
 }
 
 function upload_media(req_id, media) {
-    print("upload media");
+//    print("upload media");
     let key = req_id + "media";
     DBSet("compose_post_service.js", key, str2ab(media));
     Reply(req_id, ServiceName, "ok");
 }
 
 function upload_user_mentions(req_id, mentions) {
-    print("upload user mentions");
+//    print("upload user mentions");
     let key = req_id + "mentions";
     DBSet("compose_post_service.js", key, str2ab(mentions));
     Reply(req_id, ServiceName, "ok");
 }
 
 function upload_creator(req_id, creator) {
-    print("upload creator");
+//    print("upload creator");
     let key = req_id + "creator";
     DBSet("compose_post_service.js", key, str2ab(creator));
     Reply(req_id, ServiceName, "ok");

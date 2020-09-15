@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
         return net_server.start().then([&] {
             return net_server.invoke_on_all(&network_server::start);
         }).then([&] {
-	    return sched_server.start();
+	    return sched_server.start().then([&] {return sched_server.invoke_on(0, &scheduler::start);});
 	}).then([&] {
 	        return req_server.start().then([&] {
 		    return req_server.invoke_on_all(&req_service::start).then([&req_server] {

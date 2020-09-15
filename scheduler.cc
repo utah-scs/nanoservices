@@ -13,9 +13,18 @@
 using namespace seastar;
 namespace pt = boost::property_tree;
 
+std::vector<unsigned> queue_len;
+std::deque<atomic_uint> msg_len;
+std::vector<unsigned> total_len;
+
 distributed<scheduler> sched_server;
 
 void scheduler::start() {
+    queue_len.resize(smp::count, 0);
+    for (int i = 0; i < smp::count; i++) {
+	msg_len.emplace_back(0);
+    }
+    total_len.resize(smp::count, 0);
 }
 
 void scheduler::new_service(std::string service) {
@@ -48,6 +57,38 @@ static sstring http_date() {
     return seastar::format("{}, {:02d} {} {} {:02d}:{:02d}:{:02d} GMT",
         days[tm.tm_wday], tm.tm_mday, months[tm.tm_mon], 1900 + tm.tm_year,
         tm.tm_hour, tm.tm_min, tm.tm_sec);
+}
+
+/**
+ * This function return the different name label values
+ *  for the named metric.
+ *
+ *  @note: If the statistic or label doesn't exist, the test
+ *  that calls this function will fail.
+ *
+ * @param metric_name - the metric name
+ * @param label_name - the label name
+ * @return a set containing all the different values
+ *         of the label.
+ */
+static double get_sched_queue_length(void) {
+    namespace smi = seastar::metrics::impl;
+    auto all_metrics = smi::get_values();
+    auto& values = all_metrics->values;
+    const auto& all_metadata = *all_metrics->metadata;
+    int i = 34;
+    auto mt = all_metadata[i].metrics.begin();
+    for (auto v : values[i]) {
+        if (mt->id.full_name() == "scheduler_queue_length" && v.type() == seastar::metrics::impl::data_type::GAUGE) {
+            double tmpd = v.d();
+    	    const auto l = mt->id.labels().find("group");
+            if (l->second == "main") {
+                return tmpd;
+    	    }
+        }
+        mt++;
+    }
+    return 0;
 }
 
 future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out) {
@@ -113,6 +154,10 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
 
 future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string prev_service, 
 		             std::string service, std::string function, std::string jsargs) {
+    auto cpu = engine().cpu_id();
+    queue_len[cpu] = get_sched_queue_length(); 
+    msg_len[cpu]--;
+    total_len[cpu] = msg_len[cpu] + queue_len[cpu];
     auto new_states = new reply_states;
     new_states->local = false;
     new_states->prev_cpuid = prev_cpu;
@@ -122,45 +167,21 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string pr
     return local_req_server().run_func(req_id, service, function, jsargs);
 }
 
-/**
- * This function return the different name label values
- *  for the named metric.
- *
- *  @note: If the statistic or label doesn't exist, the test
- *  that calls this function will fail.
- *
- * @param metric_name - the metric name
- * @param label_name - the label name
- * @return a set containing all the different values
- *         of the label.
- */
-static double get_sched_queue_length(void) {
-    namespace smi = seastar::metrics::impl;
-    auto all_metrics = smi::get_values();
-    auto& values = all_metrics->values;
-    const auto& all_metadata = *all_metrics->metadata;
-    for (int i = 0; i < all_metadata.size(); i++) {
-	auto mt = all_metadata[i].metrics.begin();
-        for (auto v : values[i]) {
-            if (mt->id.full_name() == "scheduler_queue_length" && v.type() == seastar::metrics::impl::data_type::GAUGE) {
-                double tmpd = v.d();
-		const auto l = mt->id.labels().find("group");
-                if (l->second == "main") {
-                    return tmpd;
-		}
-            }
-	    mt++;
-        }
-    }
-    return 0;
-}
-
 future<> scheduler::schedule(std::string req_id, std::string prev_service, std::string service, 
 		             std::string function, std::string jsargs) {
-    cout << get_sched_queue_length() << "\n"; 
-    return run_func(engine().cpu_id(), req_id, prev_service, service, function, jsargs);
-//    return sched_server.invoke_on(engine().cpu_id() + 1 , &scheduler::run_func, engine().cpu_id(), req_id, 
-//		                  prev_service, service, function, jsargs);
+    auto cpu = engine().cpu_id();
+    queue_len[cpu] = get_sched_queue_length(); 
+    total_len[cpu] = msg_len[cpu] + queue_len[cpu];
+    size_t min = std::min_element(total_len.begin(), total_len.end()) - total_len.begin();
+    cout << queue_len << min << cpu << "\n";
+    cout << total_len << "\n";
+    msg_len[min]++;
+    total_len[min] = msg_len[min] + queue_len[min];
+    if (min == cpu)
+        return run_func(cpu, req_id, prev_service, service, function, jsargs);
+    else
+        return sched_server.invoke_on(min , &scheduler::run_func, cpu, req_id, 
+		                  prev_service, service, function, jsargs);
 }
 
 future<> scheduler::reply(std::string req_id, std::string service, std::string ret) {
