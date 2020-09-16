@@ -13,18 +13,12 @@
 using namespace seastar;
 namespace pt = boost::property_tree;
 
-std::vector<unsigned> queue_len;
-std::deque<atomic_uint> msg_len;
-std::vector<unsigned> total_len;
+std::vector<unsigned> utilization;
 
 distributed<scheduler> sched_server;
 
 void scheduler::start() {
-    queue_len.resize(smp::count, 0);
-    for (int i = 0; i < smp::count; i++) {
-	msg_len.emplace_back(0);
-    }
-    total_len.resize(smp::count, 0);
+    utilization.resize(smp::count, 0);
 }
 
 void scheduler::new_service(std::string service) {
@@ -71,20 +65,17 @@ static sstring http_date() {
  * @return a set containing all the different values
  *         of the label.
  */
-static double get_sched_queue_length(void) {
+static double get_utilization(void) {
     namespace smi = seastar::metrics::impl;
     auto all_metrics = smi::get_values();
     auto& values = all_metrics->values;
     const auto& all_metadata = *all_metrics->metadata;
-    int i = 34;
+    int i = 33;
     auto mt = all_metadata[i].metrics.begin();
     for (auto v : values[i]) {
-        if (mt->id.full_name() == "scheduler_queue_length" && v.type() == seastar::metrics::impl::data_type::GAUGE) {
+        if (mt->id.full_name() == "reactor_utilization") {
             double tmpd = v.d();
-    	    const auto l = mt->id.labels().find("group");
-            if (l->second == "main") {
-                return tmpd;
-    	    }
+            return tmpd;
         }
         mt++;
     }
@@ -152,25 +143,9 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
     });
 }
 
-/*future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string prev_service, 
-		             std::string service, std::string function, std::string jsargs) {
-    auto cpu = engine().cpu_id();
-    queue_len[cpu] = get_sched_queue_length(); 
-    msg_len[cpu]--;
-    total_len[cpu] = msg_len[cpu] + queue_len[cpu];
-    auto new_states = new reply_states;
-    new_states->local = false;
-    new_states->prev_cpuid = prev_cpu;
-    auto key = service + req_id + "reply";
-    req_map[key] = (void*)new_states;
-
-    return local_req_server().run_func(req_id, service, function, jsargs);
-}*/
-
 future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string prev_service, 
 		             std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
-//    queue_len[cpu] = get_sched_queue_length(); 
     auto new_states = new reply_states;
     new_states->local = false;
     new_states->prev_cpuid = prev_cpu;
@@ -178,33 +153,30 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string pr
     req_map[key] = (void*)new_states;
 
     return local_req_server().run_func(req_id, service, function, jsargs);
+}
+
+future<> scheduler::schedule(std::string req_id, std::string prev_service, std::string service, 
+		             std::string function, std::string jsargs) {
+    auto cpu = engine().cpu_id();
+    auto u = get_utilization();
+    utilization[cpu] = u; 
+    if (u < 90)
+        return run_func(cpu, req_id, prev_service, service, function, jsargs);
+    else {
+        size_t min = std::min_element(utilization.begin(), utilization.end()) - utilization.begin();
+	if (min != cpu && utilization[min] < 90)
+	    return sched_server.invoke_on(min , &scheduler::run_func, cpu, req_id,
+                                  prev_service, service, function, jsargs);
+	else
+            return run_func(cpu, req_id, prev_service, service, function, jsargs);
+    }
 }
 
 /*future<> scheduler::schedule(std::string req_id, std::string prev_service, std::string service, 
 		             std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
-    queue_len[cpu] = get_sched_queue_length(); 
-//    total_len[cpu] = msg_len[cpu] + queue_len[cpu];
-    //size_t min = std::min_element(total_len.begin(), total_len.end()) - total_len.begin();
-    size_t min = std::min_element(queue_len.begin(), queue_len.end()) - queue_len.begin();
-//if (cpu == 0)    cout << queue_len << min << cpu << "\n";
-//    cout << total_len << "\n";
-//    msg_len[min]++;
-//    total_len[min] = msg_len[min] + queue_len[min];
-    if (min == cpu)
         return run_func(cpu, req_id, prev_service, service, function, jsargs);
-    else
-        return sched_server.invoke_on(min , &scheduler::run_func, cpu, req_id, 
-		                  prev_service, service, function, jsargs);
 }*/
-
-future<> scheduler::schedule(std::string req_id, std::string prev_service, std::string service, 
-		             std::string function, std::string jsargs) {
-    auto cpu = engine().cpu_id();
-//    queue_len[cpu] = get_sched_queue_length(); 
-//    if (cpu == 0) cout << queue_len << cpu << "\n";
-        return run_func(cpu, req_id, prev_service, service, function, jsargs);
-}
 
 future<> scheduler::reply(std::string req_id, std::string service, std::string ret) {
     auto key = service + req_id + "reply";
