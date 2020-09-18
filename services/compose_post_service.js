@@ -23,6 +23,8 @@ function str2ab(str) {
   }
   return buf;
 }
+function upload_post(req_id) {
+}
 
 function upload_urls(req_id, urls) {
 //    print("upload urls");
@@ -49,6 +51,17 @@ function upload_creator(req_id, creator) {
 //    print("upload creator");
     let key = req_id + "creator";
     DBSet("compose_post_service.js", key, str2ab(creator));
+    Reply(req_id, ServiceName, "ok");
+}
+
+function upload_unique_id(req_id, args) {
+//    print("upload unique_id");
+    let obj = JSON.parse(args);
+    let key1 = req_id + "post_id";
+    DBSet("compose_post_service.js", key1, str2ab(obj.post_id));
+    let key2 = req_id + "post_type";
+    DBSet("compose_post_service.js", key2, str2ab(obj.post_type));
+
     Reply(req_id, ServiceName, "ok");
 }
 

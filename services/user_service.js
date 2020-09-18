@@ -32,10 +32,11 @@ function user_register(req_id, args) {
     Reply(req_id, ServiceName, "ok");
 }
 
-function upload_creator_with_userid(req_id, user_id, username) {
+function upload_creator_with_userid(req_id, user) {
+    let obj = JSON.parse(user);
     let creator = new Object();
-    creator.username = username;
-    creator.user_id = user_id;
+    creator.username = obj.username;
+    creator.user_id = obj.user_id;
     let arg = JSON.stringify(creator);
     async_call(req_id, "compose_post_service.js", "upload_creator", arg);
     Reply(req_id, ServiceName, "ok");

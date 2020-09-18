@@ -34,6 +34,12 @@ function compose(req_id, args) {
     tmp = tmp.substring(match.index + 1);
     let post_type = tmp.substring(10);
 
+    async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type);
+    let user = new Object();
+    user.user_id = userid;
+    user.username = username;
+    
+    async_call(req_id, "user_service.js", "upload_creator_with_userid", JSON.stringify(user));
     return async_call(req_id, "text_service.js", "upload_text", text)
     //return async_call(req_id, "user.js", "login", args)
     .then(
