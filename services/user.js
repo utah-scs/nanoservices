@@ -1,3 +1,16 @@
+function async_call(req_id, service, func, args) {
+    return new Promise(function(resolve, reject) {
+        Call(req_id, service, func,
+            function(error, result) {
+                if (error) {
+                    return reject(error);
+                }
+                return resolve(result);
+            },
+            args);
+    });
+}
+
 function ab2str(buf) {
   return String.fromCharCode.apply(null, new Uint16Array(buf));
 }
@@ -68,4 +81,64 @@ function mongo_login(req_id, args) {
     }
     let ret = JSON.stringify(rep);
     Reply(req_id, ServiceName, ret);
+}
+
+function register(req_id, args) {
+    let obj = JSON.parse(args);
+    let body = obj.content;
+
+    let match;
+    let tmp = body;
+    match = /&/.exec(tmp);
+    let first_name = tmp.substring(11, match.index);
+    tmp = tmp.substring(match.index + 1);
+    match = /&/.exec(tmp);
+    let last_name = tmp.substring(10, match.index);
+    tmp = tmp.substring(match.index + 1);
+    match = /&/.exec(tmp);
+    let username = tmp.substring(9, match.index);
+    tmp = tmp.substring(match.index + 1);
+    match = /&/.exec(tmp);
+    let password = tmp.substring(9, match.index);
+    tmp = tmp.substring(match.index + 1);
+    let user_id = tmp.substring(8);
+
+    let params = new Object();
+    params.user_id = user_id;
+    params.username = username;
+    return async_call(req_id, "user_service.js", "user_register", JSON.stringify(params))
+    .then(
+       result => {
+            let rep = new Object();
+            rep._status = 200;
+            rep._message = "OK";
+            let ret = JSON.stringify(rep);
+            Reply(req_id, ServiceName, ret);}
+    );
+}
+
+function follow(req_id, args) {
+    let obj = JSON.parse(args);
+    let body = obj.content;
+
+    let match;
+    let tmp = body;
+    match = /&/.exec(tmp);
+    let username = tmp.substring(10, match.index);
+    tmp = tmp.substring(match.index + 1);
+    match = /&/.exec(tmp);
+    let followee_name = tmp.substring(14);
+
+    let params = new Object();
+    params.username = username;
+    params.followee_name = followee_name;
+    return async_call(req_id, "social_graph_service.js", "follow", JSON.stringify(params))
+    .then(
+       result => {
+            let rep = new Object();
+            rep._status = 200;
+            rep._message = "OK";
+            let ret = JSON.stringify(rep);
+            Reply(req_id, ServiceName, ret);}
+    );
 }

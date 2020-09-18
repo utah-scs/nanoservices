@@ -108,6 +108,11 @@ future<> req_service::register_service(std::string service) {
                 .ToLocalChecked(),
             v8::FunctionTemplate::New(isolate, shredder::mongo_get)
         );
+        global->Set(
+            v8::String::NewFromUtf8(isolate, "CoreID", v8::NewStringType::kNormal)
+                .ToLocalChecked(),
+            v8::Integer::NewFromUnsigned(isolate, engine().cpu_id())
+        );
 
         Local<Context> c = Context::New(isolate, NULL, global);
         Context::Scope contextScope(c);

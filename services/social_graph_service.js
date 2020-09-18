@@ -24,19 +24,16 @@ function str2ab(str) {
   return buf;
 }
 
-function user_register(req_id, args) {
+function follow(req_id, args) {
     let obj = JSON.parse(args);
-    let userid = obj.user_id;
-    let username = obj.username;
-    DBSet("user_mention_service.js", username, str2ab(userid));
-    Reply(req_id, ServiceName, "ok");
-}
-
-function upload_creator_with_userid(req_id, user_id, username) {
-    let creator = new Object();
-    creator.username = username;
-    creator.user_id = user_id;
-    let arg = JSON.stringify(creator);
-    async_call(req_id, "compose_post_service.js", "upload_creator", arg);
+    let user_id = obj.username;
+    let followee_id = obj.followee_name;
+    let followees = DBGet("social_graph_service.js", user_id);
+    let update = [];
+    if (followees.byteLength != 0) {
+	update = JSON.parse(ab2str(followees));
+    }
+    update.push(followee_id);
+    DBSet("social_graph_service.js", user_id, str2ab(JSON.stringify(update)));
     Reply(req_id, ServiceName, "ok");
 }
