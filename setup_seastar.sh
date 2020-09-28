@@ -5,7 +5,6 @@ cd seastar
 sudo ./install-dependencies.sh
 sudo apt-get install -y libunistring-dev
 sudo apt-get install -y libudev-dev
-./configure.py --cook fmt
 ./configure.py --mode=release
 ninja -C build/release
 cd ..
