@@ -11,7 +11,7 @@ curl -OL https://github.com/mongodb/mongo-cxx-driver/releases/download/r3.6.0/mo
 tar -xzf mongo-cxx-driver-r3.6.0.tar.gz
 cd mongo-cxx-driver-r3.6.0/build
 cmake -j `nproc` ..                                \
-    -DCMAKE_BUILD_TYPE=Debug
+    -DCMAKE_BUILD_TYPE=Debug                       \
     -DCMAKE_INSTALL_PREFIX=/usr/local
 cmake -j `nproc` --build .
 sudo cmake --build . --target install
