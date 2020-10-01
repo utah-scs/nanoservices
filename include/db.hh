@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <fstream>
 #include <chrono>
+#include <boost/thread/shared_mutex.hpp>
 
 using namespace redis;
 using namespace std;
@@ -45,6 +46,7 @@ public:
     typedef std::chrono::duration<size_t, std::nano> ns;
 
     struct hashtable {
+        boost::shared_mutex _access;
         uint32_t size;
         struct db_val **table;
     };

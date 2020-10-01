@@ -15,6 +15,7 @@ void database::hashtable_init(uint32_t size) {
 }
 
 void database::ht_set(db_val_t* val) {
+    boost::upgrade_lock<boost::shared_mutex> lock(ht._access);
     val->next = NULL;
     uint32_t hash = get_hash(val->key, 0) % ht.size;
     db_val_t* next = ht.table[hash];
@@ -24,6 +25,7 @@ void database::ht_set(db_val_t* val) {
         next = before->next;
     }
 
+    boost::upgrade_to_unique_lock<boost::shared_mutex> uniqueLock(lock);
     if (next != NULL) {
         free(next->data);
         next->data = val->data;
@@ -36,6 +38,7 @@ void database::ht_set(db_val_t* val) {
 }
 
 db_val_t* database::ht_get(uint32_t key) {
+    boost::shared_lock<boost::shared_mutex> lock(ht._access);
     uint32_t hash = get_hash(key, 0) % ht.size;
     db_val_t* p = ht.table[hash];
     while (p && p->key != key)
