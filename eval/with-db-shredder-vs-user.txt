@@ -18,6 +18,15 @@ core	user (1 container)	user(n contianer)  shredder
 16      7596.90             19760.49            34073.57 (<800%)
 20      7676.54             25177.80            33585.97 (<900%) --- mongodb is not saturated at this point, confirmed.
 
+
+core	user (1 con)	    user(n con 2 node)  shredder(mongo)  shredder(non-mongo, 10, 100)
+1 		851.53              851.53              1512.43         18115.79     23988.17    23390.43
+2       2069.74             1652.15             3450.21         30292.73     37365.08    43366.58
+4       5076.81             2715.84             7595.25         63692.50     76280.76    76756.77
+8       7753.61             6912.04             19738.64        82012.98    151974.38   158042.84
+16      7596.90             19760.49            34073.57        72493.07    201880.24   220137.44
+20      7676.54             25177.80            33585.97        72009.64    216340.55   230587.66
+
 NOTE1: shredder seems to have a bug on using just half the CPU capability.
 NOTE2: I tried to increase the concurrency count to 1000 for shredder. but it crashes shredder. Too many files opened.
         licai@ctl:/mnt/extra/nano/deploy$ ERROR 2020-09-08 01:20:40,910 [shard 0] seastar - Exiting on unhandled exception: std::system_error (error system:24, accept4: Too many open files)
@@ -40,3 +49,6 @@ wrk -t 10 -c 10 -d 10 http://ctl:11211/user/mongo_login -H 'Authorization: Basic
 user service cpu using increasing number of cores. memory using 2GB. if too small it will be OOM killed when the concurrency is too high.
 mongodb has never saturated the CPU. for all the cases in user (1 container)
 wrk has never saturated the CPU. for all the cases in user (1 container)
+
+
+shredder without mongo. the clients are running on another physical node
