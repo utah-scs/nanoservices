@@ -1,0 +1,18 @@
+version: "3.3"
+services:
+  service1:
+    image: microbench
+    #    networks:
+            #      - overlay
+    ports:
+      - "8080:8080"
+
+  service2:
+    image: microbench2
+    #    networks:
+    #      - overlay
+    ports:
+      - "4000:4000"
+
+        #networks:
+        #  overlay:
