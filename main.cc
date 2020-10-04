@@ -75,6 +75,7 @@ int main(int argc, char** argv) {
 	            req_server.invoke_on_all(&req_service::register_service, std::string("social_graph_service.js"));
 	            req_server.invoke_on_all(&req_service::register_service, std::string("unique_id_service.js"));
 	            req_server.invoke_on_all(&req_service::register_service, std::string("microbenchmark.js"));
+	            req_server.invoke_on_all(&req_service::register_service, std::string("microbenchmark2.js"));
                     // Start JS thread on all cores
                     return req_server.invoke_on_all(&req_service::js);
 		});
