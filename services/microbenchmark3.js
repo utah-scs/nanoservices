@@ -17,7 +17,7 @@ function func(req_id, args) {
     let endtime = new Date().getTime() + Number(ms);
     while (new Date().getTime() < endtime) {
     }
-    return async_call(req_id, "microbenchmark3.js", "func", args)
+    return async_call(req_id, "microbenchmark4.js", "func", args)
     .then(
        result => {
             let rep = new Object();
