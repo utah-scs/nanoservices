@@ -34,20 +34,45 @@ function compose(req_id, args) {
     tmp = tmp.substring(match.index + 1);
     let post_type = tmp.substring(10);
 
-    async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type);
+    let count = 0;
+
+    let media_args = new Object();
+    media_args.ids = media_ids;
+    media_args.types = media_types;
+
+    return async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type)
+    .then(
+       result => {
     let user = new Object();
     user.user_id = userid;
     user.username = username;
-    
-    async_call(req_id, "user_service.js", "upload_creator_with_userid", JSON.stringify(user));
-    return async_call(req_id, "text_service.js", "upload_text", text)
-    //return async_call(req_id, "user.js", "login", args)
+ 
+    async_call(req_id, "user_service.js", "upload_creator_with_userid", JSON.stringify(user))
+    .then(
+       result => {
+    async_call(req_id, "media_service.js", "upload_media", JSON.stringify(media_args))
+    .then(
+       result => {
+	    async_call(req_id, "text_service.js", "upload_text", text)
+    .then(
+       result => {
+	    async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type)
     .then(
        result => {
             let rep = new Object();
             rep._status = 200;
             rep._message = result;
             let ret = JSON.stringify(rep);
-            Reply(req_id, ServiceName, ret);}
+            Reply(req_id, ServiceName, ret);
+        }
     );
+        }
+    );
+        }
+    );
+        }
+    );
+        }
+    );
+
 }

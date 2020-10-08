@@ -11,12 +11,8 @@ function async_call(req_id, service, func, args) {
     });
 }
 
-function upload_media(req_id, media_types, media_ids) {
-    let media = new Object();
-    media.types = media_types;
-    media.ids = media_ids;
-    let arg = JSON.stringify(media);
-    async_call(req_id, "compose_post_service.js", "upload_media", arg)
+function upload_media(req_id, args) {
+    async_call(req_id, "compose_post_service.js", "upload_media", args)
     .then(
        result => {Reply(req_id, ServiceName, "ok");}
     );

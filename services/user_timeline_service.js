@@ -12,7 +12,7 @@ function async_call(req_id, service, func, args) {
 }
 
 function write_user_timeline(req_id, post) {
-//    print(post);
     Reply(req_id, ServiceName, "ok");
     return;
 }
+

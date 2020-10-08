@@ -27,6 +27,7 @@ function upload_text(req_id, val) {
                    updated_text = updated_text.replace(updated_urls.urls[i],
 			                               updated_urls.shorturls[i]);
 	       }
+               async_call(req_id, "compose_post_service.js", "upload_text", updated_text);
 	       Reply(req_id, ServiceName, "ok");}
     );
 }
