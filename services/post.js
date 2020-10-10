@@ -40,38 +40,81 @@ function compose(req_id, args) {
     media_args.ids = media_ids;
     media_args.types = media_types;
 
-    return async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type)
+    async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type)
     .then(
        result => {
+	    count = count + 1;
+	       print("unique_id_service.js");
+	    if (count == 5) {
+                let rep = new Object();
+                rep._status = 200;
+                rep._message = result;
+                let ret = JSON.stringify(rep);
+                Reply(req_id, ServiceName, ret);
+	    }
+        }
+    );
+
     let user = new Object();
     user.user_id = userid;
     user.username = username;
- 
+    
     async_call(req_id, "user_service.js", "upload_creator_with_userid", JSON.stringify(user))
     .then(
        result => {
+	    count = count + 1;
+	       print(count);
+	    if (count == 5) {
+                let rep = new Object();
+                rep._status = 200;
+                rep._message = result;
+                let ret = JSON.stringify(rep);
+                Reply(req_id, ServiceName, ret);
+	    }
+        }
+    );
+	
     async_call(req_id, "media_service.js", "upload_media", JSON.stringify(media_args))
     .then(
        result => {
-	    async_call(req_id, "text_service.js", "upload_text", text)
+	    count = count + 1;
+	       print("media_service.js");
+	    if (count == 5) {
+                let rep = new Object();
+                rep._status = 200;
+                rep._message = result;
+                let ret = JSON.stringify(rep);
+                Reply(req_id, ServiceName, ret);
+	    }
+        }
+    );
+	
+    return async_call(req_id, "text_service.js", "upload_text", text)
     .then(
        result => {
-	    async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type)
+	    count = count + 1;
+	       print("text_service.js");
+	    if (count == 5) {
+                let rep = new Object();
+                rep._status = 200;
+                rep._message = result;
+                let ret = JSON.stringify(rep);
+                Reply(req_id, ServiceName, ret);
+	    }
+        }
+    );
+    return async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type)
     .then(
        result => {
-            let rep = new Object();
-            rep._status = 200;
-            rep._message = result;
-            let ret = JSON.stringify(rep);
-            Reply(req_id, ServiceName, ret);
-        }
-    );
-        }
-    );
-        }
-    );
-        }
-    );
+	    count = count + 1;
+	       print("unique_id_service.js");
+	    if (count == 5) {
+                let rep = new Object();
+                rep._status = 200;
+                rep._message = result;
+                let ret = JSON.stringify(rep);
+                Reply(req_id, ServiceName, ret);
+	    }
         }
     );
 

@@ -138,6 +138,7 @@ function upload_text(req_id, text) {
     let key = req_id + "text";
     DBSet("compose_post_service.js", key, str2ab(text));
     check_upload_post(req_id);	
+//    upload_post(req_id);
 }
 
 function upload_unique_id(req_id, args) {
