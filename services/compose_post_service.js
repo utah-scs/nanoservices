@@ -76,7 +76,7 @@ function upload_post(req_id) {
     args2.post_id = post.post_id;
     args2.mentions = post.user_mentions;
 
-    async_call(req_id, "home_timeline_service.js", "upload_home_timeline", JSON.stringify(args2))
+    async_call(req_id, "write_home_timeline_service.js", "write_home_timeline", JSON.stringify(args2))
     .then(
        result => {
             count = count + 1;

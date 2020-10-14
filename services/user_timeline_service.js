@@ -11,8 +11,85 @@ function async_call(req_id, service, func, args) {
     });
 }
 
+function ab2str(buf) {
+  return String.fromCharCode.apply(null, new Uint16Array(buf));
+}
+
+function str2ab(str) {
+  var buf = new ArrayBuffer(str.length * 2); // 2 bytes for each char
+  var bufView = new Uint16Array(buf);
+  for (var i = 0, strLen = str.length; i < strLen; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return buf;
+}
+
+Array.prototype.push_sorted = function(e, compare) {
+  this.splice((function(arr) {
+    let m = 0;
+    let n = arr.length - 1;
+
+    while(m <= n) {
+      let k = (n + m) >> 1;
+      let cmp = compare(e, arr[k]);
+
+      if(cmp > 0) m = k + 1;
+        else if(cmp < 0) n = k - 1;
+        else return k;
+    }
+
+    return -m - 1;
+  })(this), 0, e);
+
+  return this.length;
+};
+
+const comp = (a, b) => a.timestamp > b.timestamp;
+
+function binary_search(arr, timestamp) {
+    let m = 0;
+    let n = arr.length - 1;
+    
+    while(m <= n) {
+      let k = (n + m) >> 1;
+
+      if(timestamp > arr[k].timestamp) m = k + 1;
+        else if(timestamp < arr[k].timestamp) n = k - 1;
+        else return k;
+    }
+    return -m - 1;
+}
+
 function write_user_timeline(req_id, post) {
+    let e = JSON.parse(post);
+    let posts = [];
+    let tmp = DBGet("user_timeline_service.js", e.user_id);
+    if (tmp.byteLength != 0)
+	posts = JSON.parse(ab2str(tmp));
+    
+    tmp.push_sorted(e, comp);
+    DBSet("user_timeline_service.js", e.user_id, str2ab(JSON.stringify(posts)));
+
     Reply(req_id, ServiceName, "ok");
     return;
 }
 
+function read_user_timeline(req_id, args) {
+    let req = JSON.parse(args);
+    let posts = [];
+    let arr = [];
+    let tmp = DBGet("user_timeline_service.js", e.user_id);
+    if (tmp.byteLength != 0)
+        arr = JSON.parse(ab2str(tmp));
+    let range = arr.slice(binary_search(arr, req.start), binary_search(arr, req.end));
+    let e;
+    for (e in range)
+	posts.push(e.post_id);
+
+    async_call(req_id, "post_storage.js", "read_posts", JSON.stringify(posts))
+    .then(
+       result => {
+            Reply(req_id, ServiceName, result);
+        }
+    ); 
+}
