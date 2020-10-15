@@ -14,12 +14,16 @@
 #include <functional>
 #include <boost/uuid/detail/sha1.hpp>
 #include <boost/beast/core/detail/base64.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
 
 using namespace std;
 using namespace seastar;
 using namespace v8;
 using namespace std::chrono;
 using namespace shredder;
+using namespace boost::uuids;
 
 distributed<req_service> req_server;
 extern mongocxx::pool *pool;
@@ -275,9 +279,6 @@ future<> req_service::js() {
 namespace shredder {
 // C++ binding for JS functions to get data from hashtable
 void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    db_val ret;
-    db_val* ret_p = &ret;
-
     auto ctx = args.GetIsolate()->GetCurrentContext();
 
     v8::String::Utf8Value str(args.GetIsolate(), args[0]);
@@ -298,6 +299,7 @@ void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     db_val* val = db->ht_get(key);
     if (!val) {
         val = (db_val*)malloc(sizeof(db_val));
+	val->data = NULL;
         val->length = 0;
     }
     
@@ -389,11 +391,14 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto local_service = std::string(*str);
     auto states = new callback_states;
 
+    auto gen = random_generator();
+    auto call_id = to_string(gen());
+
     states->callback.Reset(isolate, callback);
-    auto key = service + req_id + "cb";
+    auto key = service + call_id + "cb";
     get_local_sched()->set_req_states(key, (void*)states);
 
-    get_local_sched()->schedule(req_id, local_service, service, function, jsargs);
+    get_local_sched()->schedule(call_id, local_service, service, function, jsargs);
 }
 
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {
