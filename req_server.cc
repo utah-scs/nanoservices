@@ -144,7 +144,7 @@ future<> req_service::register_service(std::string service) {
     return make_ready_future<>();
 }
 
-future<> req_service::run_callback(std::string req_id, std::string service, sstring ret) {
+future<> req_service::run_callback(std::string call_id, std::string service, sstring ret) {
     v8::Locker locker{isolate};
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -154,7 +154,7 @@ future<> req_service::run_callback(std::string req_id, std::string service, sstr
     Context::Scope context_scope(context);
     current_context = &context;
 
-    auto key = service + req_id + "cb";
+    auto key = service + call_id + "cb";
     auto states = (struct callback_states*)get_local_sched()->get_req_states(key);
     Local<Function> callback = Local<Function>::New(isolate, states->callback);
     const int argc = 2;
@@ -171,7 +171,7 @@ future<> req_service::run_callback(std::string req_id, std::string service, sstr
     return make_ready_future<>();
 }
 
-future<> req_service::run_func(std::string req_id, std::string service, std::string function, std::string jsargs) {
+future<> req_service::run_func(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs) {
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -193,11 +193,13 @@ future<> req_service::run_func(std::string req_id, std::string service, std::str
  
     Local<Value> result;
 
-    const int argc = 2;
+    const int argc = 3;
     Local<Value> argv[argc];
     argv[0] = String::NewFromUtf8(isolate, req_id.c_str(), NewStringType::kNormal)
                                  .ToLocalChecked();
-    argv[1] = String::NewFromUtf8(isolate, jsargs.c_str(), NewStringType::kNormal)
+    argv[1] = String::NewFromUtf8(isolate, call_id.c_str(), NewStringType::kNormal)
+                                 .ToLocalChecked();
+    argv[2] = String::NewFromUtf8(isolate, jsargs.c_str(), NewStringType::kNormal)
                                  .ToLocalChecked();
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
@@ -232,10 +234,11 @@ future<> req_service::js_req(std::string req_id, sstring service, sstring functi
  
     Local<Value> result;
 
-    const int argc = 2;
+    const int argc = 3;
     Local<Value> argv[argc];
     argv[0] = v8::String::NewFromUtf8(isolate, req_id.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
-    argv[1] = v8::String::NewFromUtf8(isolate, args.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
+    argv[1] = v8::String::NewFromUtf8(isolate, req_id.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
+    argv[2] = v8::String::NewFromUtf8(isolate, args.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
          auto cstr = "error\n";
@@ -398,7 +401,7 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto key = service + call_id + "cb";
     get_local_sched()->set_req_states(key, (void*)states);
 
-    get_local_sched()->schedule(call_id, local_service, service, function, jsargs);
+    get_local_sched()->schedule(req_id, call_id, local_service, service, function, jsargs);
 }
 
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -415,12 +418,12 @@ void reply(const v8::FunctionCallbackInfo<v8::Value>& args) {
     HandleScope handle_scope(isolate);
 
     v8::String::Utf8Value num(isolate, args[0]);
-    auto req_id = std::string(*num);
+    auto call_id = std::string(*num);
     v8::String::Utf8Value str1(isolate, args[1]);
     auto service = std::string(*str1);
     v8::String::Utf8Value str2(isolate, args[2]);
     auto ret = std::string(*str2);
-    get_local_sched()->reply(req_id, service, ret);
+    get_local_sched()->reply(call_id, service, ret);
 }
 
 void sha1(const v8::FunctionCallbackInfo<v8::Value>& args) {

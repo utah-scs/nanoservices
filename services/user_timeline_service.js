@@ -60,7 +60,7 @@ function binary_search(arr, timestamp) {
     return -m - 1;
 }
 
-function write_user_timeline(req_id, post) {
+function write_user_timeline(req_id, call_id, post) {
     let e = JSON.parse(post);
     let posts = [];
     let tmp = DBGet("user_timeline_service.js", e.user_id);
@@ -70,11 +70,11 @@ function write_user_timeline(req_id, post) {
     tmp.push_sorted(e, comp);
     DBSet("user_timeline_service.js", e.user_id, str2ab(JSON.stringify(posts)));
 
-    Reply(req_id, ServiceName, "ok");
+    Reply(call_id, ServiceName, "ok");
     return;
 }
 
-function read_user_timeline(req_id, args) {
+function read_user_timeline(req_id, call_id, args) {
     let req = JSON.parse(args);
     let posts = [];
     let arr = [];
@@ -89,7 +89,7 @@ function read_user_timeline(req_id, args) {
     async_call(req_id, "post_storage.js", "read_posts", JSON.stringify(posts))
     .then(
        result => {
-            Reply(req_id, ServiceName, result);
+            Reply(call_id, ServiceName, result);
         }
     ); 
 }

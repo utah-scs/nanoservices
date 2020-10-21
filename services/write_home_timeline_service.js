@@ -24,7 +24,7 @@ function str2ab(str) {
   return buf;
 }
 
-function write_home_timeline(req_id, args) {
+function write_home_timeline(req_id, call_id, args) {
     let obj = JSON.parse(args);
     async_call(req_id, "social_graph_service.js", "get_followers", obj.user_id)
     .then(
@@ -40,6 +40,7 @@ function write_home_timeline(req_id, args) {
 	       for (user_id in all) {
                    async_call(req_id, "user_timeline_service.js", "write_user_timeline", JSON.stringify(args));
 	       }
+	       Reply(call_id, ServiceName, "ok");
         }
     );
 }

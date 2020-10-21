@@ -11,7 +11,7 @@ function async_call(req_id, service, func, args) {
     });
 }
 
-function compose(req_id, args) {
+function compose(req_id, call_id, args) {
     let obj = JSON.parse(args); 
     let body = obj.content;
 
@@ -44,13 +44,12 @@ function compose(req_id, args) {
     .then(
        result => {
 	    count = count + 1;
-	       print("unique_id_service.js");
-	    if (count == 5) {
+	    if (count == 4) {
                 let rep = new Object();
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(req_id, ServiceName, ret);
+                Reply(call_id, ServiceName, ret);
 	    }
         }
     );
@@ -63,13 +62,12 @@ function compose(req_id, args) {
     .then(
        result => {
 	    count = count + 1;
-	       print(count);
-	    if (count == 5) {
+	    if (count == 4) {
                 let rep = new Object();
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(req_id, ServiceName, ret);
+                Reply(call_id, ServiceName, ret);
 	    }
         }
     );
@@ -78,13 +76,12 @@ function compose(req_id, args) {
     .then(
        result => {
 	    count = count + 1;
-	       print("media_service.js");
-	    if (count == 5) {
+	    if (count == 4) {
                 let rep = new Object();
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(req_id, ServiceName, ret);
+                Reply(call_id, ServiceName, ret);
 	    }
         }
     );
@@ -93,29 +90,13 @@ function compose(req_id, args) {
     .then(
        result => {
 	    count = count + 1;
-	       print("text_service.js");
-	    if (count == 5) {
+	    if (count == 4) {
                 let rep = new Object();
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(req_id, ServiceName, ret);
+                Reply(call_id, ServiceName, ret);
 	    }
         }
     );
-    return async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type)
-    .then(
-       result => {
-	    count = count + 1;
-	       print("unique_id_service.js");
-	    if (count == 5) {
-                let rep = new Object();
-                rep._status = 200;
-                rep._message = result;
-                let ret = JSON.stringify(rep);
-                Reply(req_id, ServiceName, ret);
-	    }
-        }
-    );
-
 }

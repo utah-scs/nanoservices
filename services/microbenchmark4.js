@@ -1,4 +1,4 @@
-function func(req_id, args) {
+function func(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let ms = obj.headers.MS;
     let endtime = new Date().getTime() + Number(ms);
@@ -8,5 +8,5 @@ function func(req_id, args) {
     rep._status = 200;
     rep._message = "ok";
     let ret = JSON.stringify(rep);
-    Reply(req_id, ServiceName, ret);
+    Reply(call_id, ServiceName, ret);
 }

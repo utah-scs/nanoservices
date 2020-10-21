@@ -143,43 +143,37 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
     });
 }
 
-future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string prev_service, 
-		             std::string service, std::string function, std::string jsargs) {
+future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string call_id, 
+		std::string prev_service, std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
     auto new_states = new reply_states;
     new_states->local = false;
     new_states->prev_cpuid = prev_cpu;
-    auto key = service + req_id + "reply";
+    auto key = service + call_id + "reply";
     req_map[key] = (void*)new_states;
 
-    return local_req_server().run_func(req_id, service, function, jsargs);
+    return local_req_server().run_func(req_id, call_id, service, function, jsargs);
 }
 
-future<> scheduler::schedule(std::string req_id, std::string prev_service, std::string service, 
-		             std::string function, std::string jsargs) {
+future<> scheduler::schedule(std::string req_id, std::string call_id, std::string prev_service, 
+		             std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
     auto u = get_utilization();
     utilization[cpu] = u; 
     if (u < 90)
-        return run_func(cpu, req_id, prev_service, service, function, jsargs);
+        return run_func(cpu, req_id, call_id, prev_service, service, function, jsargs);
     else {
         size_t min = std::min_element(utilization.begin(), utilization.end()) - utilization.begin();
 	if (min != cpu && utilization[min] < 90)
 	    return sched_server.invoke_on(min , &scheduler::run_func, cpu, req_id,
-                                  prev_service, service, function, jsargs);
+                                  call_id, prev_service, service, function, jsargs);
 	else
-            return run_func(cpu, req_id, prev_service, service, function, jsargs);
+            return run_func(cpu, req_id, call_id, prev_service, service, function, jsargs);
     }
 }
 
-/*future<> scheduler::schedule(std::string req_id, std::string prev_service, std::string service, 
-		             std::string function, std::string jsargs) {
-    auto cpu = engine().cpu_id();
-        return run_func(cpu, req_id, prev_service, service, function, jsargs);
-}*/
-
-future<> scheduler::reply(std::string req_id, std::string service, std::string ret) {
-    auto key = service + req_id + "reply";
+future<> scheduler::reply(std::string call_id, std::string service, std::string ret) {
+    auto key = service + call_id + "reply";
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
@@ -202,6 +196,6 @@ future<> scheduler::reply(std::string req_id, std::string service, std::string r
         //        free(states);
 	//    });
     } else {
-        return req_server.invoke_on(states->prev_cpuid, &req_service::run_callback, req_id, service, ret);
+        return req_server.invoke_on(states->prev_cpuid, &req_service::run_callback, call_id, service, ret);
     }
 }

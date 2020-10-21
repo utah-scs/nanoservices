@@ -24,7 +24,7 @@ function str2ab(str) {
   return buf;
 }
 
-function follow(req_id, args) {
+function follow(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let user_id = obj.username;
     let followee_id = obj.followee_name;
@@ -55,15 +55,15 @@ function follow(req_id, args) {
     }
     followers.push(user_id);
     DBSet("social_graph_service.js", followee_id + "followers", str2ab(JSON.stringify(followers)));
-    Reply(req_id, ServiceName, "ok");
+    Reply(call_id, ServiceName, "ok");
 }
 
-function get_followers(req_id, user_id) {
+function get_followers(req_id, call_id, user_id) {
     let followers;
     let tmp = DBGet("social_graph_service.js", user_id + "followers");
     if (tmp.byteLength != 0)
         followers = ab2str(tmp);
     else
 	followers = "[]";
-    Reply(req_id, ServiceName, "followers");
+    Reply(call_id, ServiceName, "followers");
 }

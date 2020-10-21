@@ -21,7 +21,7 @@ function gen_random_str(length) {
     return result;
 }
 
-function upload_urls(req_id, arg) {
+function upload_urls(req_id, call_id, arg) {
     let urls = JSON.parse(arg);
     let length = urls.length;
     let results = new Object();
@@ -34,6 +34,6 @@ function upload_urls(req_id, arg) {
     }
     let ret = JSON.stringify(results);
     async_call(req_id, "compose_post_service.js", "upload_urls", ret);
-    Reply(req_id, ServiceName, ret);
+    Reply(call_id, ServiceName, ret);
 }
 

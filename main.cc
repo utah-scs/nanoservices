@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
 	            req_server.invoke_on_all(&req_service::register_service, std::string("microbenchmark3.js"));
 	            req_server.invoke_on_all(&req_service::register_service, std::string("microbenchmark4.js"));
 	            req_server.invoke_on_all(&req_service::register_service, std::string("home_timeline_service.js"));
+	            req_server.invoke_on_all(&req_service::register_service, std::string("write_home_timeline_service.js"));
 	            req_server.invoke_on_all(&req_service::register_service, std::string("post_storage.js"));
                     // Start JS thread on all cores
                     return req_server.invoke_on_all(&req_service::js);

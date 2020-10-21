@@ -11,7 +11,7 @@ function async_call(req_id, service, func, args) {
     });
 }
 
-function upload_text(req_id, val) {
+function upload_text(req_id, call_id, val) {
     let user_mentions = val.match(/@[a-zA-Z0-9-_]+/g);
     let urls = val.match(/(http:\/\/|https:\/\/)([a-zA-Z0-9_!~*'().&=+$%-]+)/g);
     let mentions = JSON.stringify(user_mentions);
@@ -27,7 +27,12 @@ function upload_text(req_id, val) {
                    updated_text = updated_text.replace(updated_urls.urls[i],
 			                               updated_urls.shorturls[i]);
 	       }
-               async_call(req_id, "compose_post_service.js", "upload_text", updated_text);
-	       Reply(req_id, ServiceName, "ok");}
+               async_call(req_id, "compose_post_service.js", "upload_text", updated_text)
+	       .then(
+                   result => {
+	               Reply(call_id, ServiceName, "ok");
+		   }
+	       );
+       }
     );
 }

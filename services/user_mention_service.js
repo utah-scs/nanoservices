@@ -24,7 +24,7 @@ function str2ab(str) {
   return buf;
 }
 
-function upload_user_mentions(req_id, arg) {
+function upload_user_mentions(req_id, call_id, arg) {
     let mentions = JSON.parse(arg);
     let length = mentions.length;
     let results = new Object();
@@ -37,6 +37,9 @@ function upload_user_mentions(req_id, arg) {
         results.userids.push(userid);
     }
     let ret = JSON.stringify(results);
-    async_call(req_id, "compose_post_service.js", "upload_user_mentions", ret);
-    Reply(req_id, ServiceName, "ok");
+    async_call(req_id, "compose_post_service.js", "upload_user_mentions", ret)
+    .then(
+        result => {
+            Reply(call_id, ServiceName, "ok");}
+    );
 }

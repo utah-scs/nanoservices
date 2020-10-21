@@ -24,7 +24,8 @@ function str2ab(str) {
   return buf;
 }
 
-function upload_post(req_id) {
+function upload_post(req_id, call_id) {
+	print("upload post");
     let post = new Object();
     post.req_id = req_id;
     post.text = ab2str(DBGet("compose_post_service.js", req_id + "text"));
@@ -46,7 +47,7 @@ function upload_post(req_id) {
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(req_id, ServiceName, ret);
+                Reply(call_id, ServiceName, ret);
             }
         }
     );
@@ -65,7 +66,7 @@ function upload_post(req_id) {
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(req_id, ServiceName, ret);
+                Reply(call_id, ServiceName, ret);
             }
         }
     );
@@ -79,76 +80,83 @@ function upload_post(req_id) {
     async_call(req_id, "write_home_timeline_service.js", "write_home_timeline", JSON.stringify(args2))
     .then(
        result => {
+	       print("write_home_timeline_service.js");
             count = count + 1;
             if (count == 3) {
                 let rep = new Object();
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(req_id, ServiceName, ret);
+                Reply(call_id, ServiceName, ret);
             }
         }
     );
 }
 
-function check_upload_post(req_id) {
+function check_upload_post(req_id, call_id) {
     let key = req_id + "count";
     let count = DBGet("compose_post_service.js", key);
     let new_count = 0;
     if (count.byteLength == 0) {
 	new_count = 1;
         DBSet("compose_post_service.js", key, str2ab(new_count.toString()));
-        Reply(req_id, ServiceName, "ok");
+        Reply(call_id, ServiceName, "ok");
     } else {
         new_count = Number(ab2str(count)) + 1;
+	    print(new_count);
 	if (new_count == 6) {
             upload_post(req_id);
 	} else {
             DBSet("compose_post_service.js", key, str2ab(new_count.toString()));
-            Reply(req_id, ServiceName, "ok");
+            Reply(call_id, ServiceName, "ok");
 	}
     }
 }
 
-function upload_urls(req_id, urls) {
+function upload_urls(req_id, call_id, urls) {
+	print("upload_urls");
     let key = req_id + "urls";
     DBSet("compose_post_service.js", key, str2ab(urls));
-    check_upload_post(req_id);	
+    check_upload_post(req_id, call_id);	
 }
 
-function upload_media(req_id, media) {
+function upload_media(req_id, call_id, media) {
+	print("upload_media");
     let key = req_id + "media";
     DBSet("compose_post_service.js", key, str2ab(media));
-    check_upload_post(req_id);	
+    check_upload_post(req_id, call_id);	
 }
 
-function upload_user_mentions(req_id, mentions) {
+function upload_user_mentions(req_id, call_id, mentions) {
+	print("upload_mentions");
     let key = req_id + "mentions";
     DBSet("compose_post_service.js", key, str2ab(mentions));
-    check_upload_post(req_id);	
+    check_upload_post(req_id, call_id);	
 }
 
-function upload_creator(req_id, creator) {
+function upload_creator(req_id, call_id, creator) {
+	print("upload_creator");
     let key = req_id + "creator";
     DBSet("compose_post_service.js", key, str2ab(creator));
-    check_upload_post(req_id);	
+    check_upload_post(req_id, call_id);	
 }
 
-function upload_text(req_id, text) {
+function upload_text(req_id, call_id, text) {
+	print("upload_text");
     let key = req_id + "text";
     DBSet("compose_post_service.js", key, str2ab(text));
-    check_upload_post(req_id);	
-//    upload_post(req_id);
+    check_upload_post(req_id, call_id);	
 }
 
-function upload_unique_id(req_id, args) {
+function upload_unique_id(req_id, call_id, args) {
+	print("upload_unique_id");
     let obj = JSON.parse(args);
     let key1 = req_id + "post_id";
     DBSet("compose_post_service.js", key1, str2ab(obj.post_id));
     let key2 = req_id + "post_type";
     DBSet("compose_post_service.js", key2, str2ab(obj.post_type));
 
-    check_upload_post(req_id);	
+    check_upload_post(req_id, call_id);	
 }
 
 

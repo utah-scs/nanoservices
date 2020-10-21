@@ -27,7 +27,7 @@ function get_counter(t) {
     }
 }
 
-function upload_unique_id(req_id, post_type) {
+function upload_unique_id(req_id, call_id, post_type) {
     let t = Date.now();
     let idx = get_counter(t);
     let post_id = CoreID.toString() + t.toString() + idx.toString(); 
@@ -39,7 +39,7 @@ function upload_unique_id(req_id, post_type) {
     async_call(req_id, "compose_post_service.js", "upload_unique_id", JSON.stringify(params))
     .then(
        result => {
-           Reply(req_id, ServiceName, "ok");
+           Reply(call_id, ServiceName, "ok");
        }
     );
 }

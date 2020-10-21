@@ -24,7 +24,7 @@ function str2ab(str) {
   return buf;
 }
 
-function init_db(req_id, args) {
+function init_db(req_id, call_id, args) {
     let user = new Object();
     user.id = "57a98d98e4b00679b4a830af";
     user.firstname = "Eve";
@@ -38,10 +38,10 @@ function init_db(req_id, args) {
     rep._status = 200;
     rep._message = "ok";
     let ret = JSON.stringify(rep);
-    Reply(req_id, ServiceName, ret);
+    Reply(call_id, ServiceName, ret);
 }
 
-function login(req_id, args) {
+function login(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let str = Base64Decode(obj.headers.Authorization.substr(6));
     let auth = str.split(":");
@@ -58,10 +58,10 @@ function login(req_id, args) {
         rep._message = "ok";
     }
     let ret = JSON.stringify(rep);
-    Reply(req_id, ServiceName, ret);
+    Reply(call_id, ServiceName, ret);
 }
 
-function mongo_login(req_id, args) {
+function mongo_login(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let str = Base64Decode(obj.headers.Authorization.substr(6));
     let auth = str.split(":");
@@ -80,10 +80,10 @@ function mongo_login(req_id, args) {
         rep._message = "ok";
     }
     let ret = JSON.stringify(rep);
-    Reply(req_id, ServiceName, ret);
+    Reply(call_id, ServiceName, ret);
 }
 
-function register(req_id, args) {
+function register(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let body = obj.content;
 
@@ -113,11 +113,11 @@ function register(req_id, args) {
             rep._status = 200;
             rep._message = "OK";
             let ret = JSON.stringify(rep);
-            Reply(req_id, ServiceName, ret);}
+            Reply(call_id, ServiceName, ret);}
     );
 }
 
-function follow(req_id, args) {
+function follow(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let body = obj.content;
 
@@ -139,6 +139,6 @@ function follow(req_id, args) {
             rep._status = 200;
             rep._message = "OK";
             let ret = JSON.stringify(rep);
-            Reply(req_id, ServiceName, ret);}
+            Reply(call_id, ServiceName, ret);}
     );
 }

@@ -11,19 +11,19 @@ function str2ab(str) {
   return buf;
 }
 
-function store_post(req_id, args) {
+function store_post(req_id, call_id, args) {
 	//print("store post");
     let post_id = JSON.parse(args).post_id;
     DBSet("post_storage.js", post_id, str2ab(args));
-    Reply(req_id, ServiceName, "ok");
+    Reply(call_id, ServiceName, "ok");
 }
 
-function read_post(req_id, post_id) {
+function read_post(req_id, call_id, post_id) {
     let post = ab2str(DBGet("post_storage.js", post_id));
-    Reply(req_id, ServiceName, post);
+    Reply(call_id, ServiceName, post);
 }
 
-function read_posts(req_id, args) {
+function read_posts(req_id, call_id, args) {
     let arr = JSON.parse(args);
     let ret = [];
     let id;
@@ -31,5 +31,5 @@ function read_posts(req_id, args) {
         let post = ab2str(DBGet("post_storage.js", id));
 	ret.push(post);
     }
-    Reply(req_id, ServiceName, JSON.stringify(ret));
+    Reply(call_id, ServiceName, JSON.stringify(ret));
 }

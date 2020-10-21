@@ -24,20 +24,23 @@ function str2ab(str) {
   return buf;
 }
 
-function user_register(req_id, args) {
+function user_register(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let userid = obj.user_id;
     let username = obj.username;
     DBSet("user_mention_service.js", username, str2ab(userid));
-    Reply(req_id, ServiceName, "ok");
+    Reply(call_id, ServiceName, "ok");
 }
 
-function upload_creator_with_userid(req_id, user) {
+function upload_creator_with_userid(req_id, call_id, user) {
     let obj = JSON.parse(user);
     let creator = new Object();
     creator.username = obj.username;
     creator.user_id = obj.user_id;
     let arg = JSON.stringify(creator);
-    async_call(req_id, "compose_post_service.js", "upload_creator", arg);
-    Reply(req_id, ServiceName, "ok");
+    async_call(req_id, "compose_post_service.js", "upload_creator", arg)
+    .then(
+        result => {
+            Reply(call_id, ServiceName, "ok");
+	});
 }
