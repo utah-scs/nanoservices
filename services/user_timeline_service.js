@@ -60,14 +60,15 @@ function binary_search(arr, timestamp) {
     return -m - 1;
 }
 
-function write_user_timeline(req_id, call_id, post) {
-    let e = JSON.parse(post);
+function write_user_timeline(req_id, call_id, args) {
+    let e = JSON.parse(args);
+    let post = JSON.parse(e.post);
     let posts = [];
     let tmp = DBGet("user_timeline_service.js", e.user_id);
     if (tmp.byteLength != 0)
 	posts = JSON.parse(ab2str(tmp));
     
-    tmp.push_sorted(e, comp);
+    posts.push_sorted(post, comp);
     DBSet("user_timeline_service.js", e.user_id, str2ab(JSON.stringify(posts)));
 
     Reply(call_id, ServiceName, "ok");

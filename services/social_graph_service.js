@@ -65,5 +65,5 @@ function get_followers(req_id, call_id, user_id) {
         followers = ab2str(tmp);
     else
 	followers = "[]";
-    Reply(call_id, ServiceName, "followers");
+    Reply(call_id, ServiceName, followers);
 }

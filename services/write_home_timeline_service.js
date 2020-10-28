@@ -33,14 +33,26 @@ function write_home_timeline(req_id, call_id, args) {
 	       let mentions = JSON.parse(obj.mentions);
 	       let all = [].concat(followers, mentions.userids);
 	       let user_id;
-	       let args = new Object();
-               args.user_id = obj.user_id;
-               args.timestamp = obj.timestamp;
-               args.post_id = obj.post_id;
+	       let count = 0;
+	       let post = new Object();
+               post.user_id = obj.user_id;
+               post.timestamp = obj.timestamp;
+               post.post_id = obj.post_id;
+
+	       let tmp = JSON.stringify(post);
+
 	       for (user_id in all) {
-                   async_call(req_id, "user_timeline_service.js", "write_user_timeline", JSON.stringify(args));
+	           let new_args = new Object();
+		   new_args.user_id = user_id;
+		   new_args.post = tmp;
+                   async_call(req_id, "user_timeline_service.js", "write_user_timeline", JSON.stringify(new_args))
+                  .then(
+                   result => {
+                       count = count + 1;
+                       if (count == all.length)
+                           Reply(call_id, ServiceName, "ok");
+                   });
 	       }
-	       Reply(call_id, ServiceName, "ok");
         }
     );
 }

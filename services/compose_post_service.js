@@ -25,7 +25,6 @@ function str2ab(str) {
 }
 
 function upload_post(req_id, call_id) {
-	print("upload post");
     let post = new Object();
     post.req_id = req_id;
     post.text = ab2str(DBGet("compose_post_service.js", req_id + "text"));
@@ -53,10 +52,13 @@ function upload_post(req_id, call_id) {
     );
  
     let user_id = JSON.parse(post.creator).user_id;
+    let tmp = new Object();
+    tmp.user_id = user_id;
+    tmp.timestamp = post.timestamp;
+    tmp.post_id = post.post_id;
     let args1 = new Object();
     args1.user_id = user_id;
-    args1.timestamp = post.timestamp;
-    args1.post_id = post.post_id;
+    args1.post = JSON.stringify(tmp);
     async_call(req_id, "user_timeline_service.js", "write_user_timeline", JSON.stringify(args1))
     .then(
        result => {
@@ -80,7 +82,6 @@ function upload_post(req_id, call_id) {
     async_call(req_id, "write_home_timeline_service.js", "write_home_timeline", JSON.stringify(args2))
     .then(
        result => {
-	       print("write_home_timeline_service.js");
             count = count + 1;
             if (count == 3) {
                 let rep = new Object();
@@ -103,9 +104,8 @@ function check_upload_post(req_id, call_id) {
         Reply(call_id, ServiceName, "ok");
     } else {
         new_count = Number(ab2str(count)) + 1;
-	    print(new_count);
 	if (new_count == 6) {
-            upload_post(req_id);
+            upload_post(req_id, call_id);
 	} else {
             DBSet("compose_post_service.js", key, str2ab(new_count.toString()));
             Reply(call_id, ServiceName, "ok");
@@ -114,42 +114,36 @@ function check_upload_post(req_id, call_id) {
 }
 
 function upload_urls(req_id, call_id, urls) {
-	print("upload_urls");
     let key = req_id + "urls";
     DBSet("compose_post_service.js", key, str2ab(urls));
     check_upload_post(req_id, call_id);	
 }
 
 function upload_media(req_id, call_id, media) {
-	print("upload_media");
     let key = req_id + "media";
     DBSet("compose_post_service.js", key, str2ab(media));
     check_upload_post(req_id, call_id);	
 }
 
 function upload_user_mentions(req_id, call_id, mentions) {
-	print("upload_mentions");
     let key = req_id + "mentions";
     DBSet("compose_post_service.js", key, str2ab(mentions));
     check_upload_post(req_id, call_id);	
 }
 
 function upload_creator(req_id, call_id, creator) {
-	print("upload_creator");
     let key = req_id + "creator";
     DBSet("compose_post_service.js", key, str2ab(creator));
     check_upload_post(req_id, call_id);	
 }
 
 function upload_text(req_id, call_id, text) {
-	print("upload_text");
     let key = req_id + "text";
     DBSet("compose_post_service.js", key, str2ab(text));
     check_upload_post(req_id, call_id);	
 }
 
 function upload_unique_id(req_id, call_id, args) {
-	print("upload_unique_id");
     let obj = JSON.parse(args);
     let key1 = req_id + "post_id";
     DBSet("compose_post_service.js", key1, str2ab(obj.post_id));

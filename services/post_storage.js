@@ -12,7 +12,6 @@ function str2ab(str) {
 }
 
 function store_post(req_id, call_id, args) {
-	//print("store post");
     let post_id = JSON.parse(args).post_id;
     DBSet("post_storage.js", post_id, str2ab(args));
     Reply(call_id, ServiceName, "ok");
