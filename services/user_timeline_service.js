@@ -29,8 +29,9 @@ Array.prototype.push_sorted = function(e, compare) {
     let m = 0;
     let n = arr.length - 1;
 
+    let k;
     while(m <= n) {
-      let k = (n + m) >> 1;
+      k = (n + m) >> 1;
       let cmp = compare(e, arr[k]);
 
       if(cmp > 0) m = k + 1;
@@ -38,7 +39,7 @@ Array.prototype.push_sorted = function(e, compare) {
         else return k;
     }
 
-    return -m - 1;
+    return m;
   })(this), 0, e);
 
   return this.length;
@@ -49,15 +50,19 @@ const comp = (a, b) => a.timestamp > b.timestamp;
 function binary_search(arr, timestamp) {
     let m = 0;
     let n = arr.length - 1;
-    
+    let k;
     while(m <= n) {
-      let k = (n + m) >> 1;
-
-      if(timestamp > arr[k].timestamp) m = k + 1;
-        else if(timestamp < arr[k].timestamp) n = k - 1;
+        k = (n + m) >> 1;
+       
+        if(timestamp > arr[k].timestamp) {
+            m = k + 1;
+        }
+        else if(timestamp < arr[k].timestamp) {
+            n = k - 1;
+        }
         else return k;
     }
-    return -m - 1;
+    return k;
 }
 
 function write_user_timeline(req_id, call_id, args) {
@@ -79,14 +84,15 @@ function read_user_timeline(req_id, call_id, args) {
     let req = JSON.parse(args);
     let posts = [];
     let arr = [];
-    let tmp = DBGet("user_timeline_service.js", e.user_id);
+    let tmp = DBGet("user_timeline_service.js", req.user_id);
     if (tmp.byteLength != 0)
         arr = JSON.parse(ab2str(tmp));
-    let range = arr.slice(binary_search(arr, req.start), binary_search(arr, req.end));
+    let range = arr.slice(binary_search(arr, req.start), binary_search(arr, req.end)+1);
     let e;
-    for (e in range)
-	posts.push(e.post_id);
-
+    for (let i = 0; i < range.length; i++) {
+	posts.push(arr[i].post_id);
+    }
+    
     async_call(req_id, "post_storage.js", "read_posts", JSON.stringify(posts))
     .then(
        result => {

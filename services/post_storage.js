@@ -25,9 +25,8 @@ function read_post(req_id, call_id, post_id) {
 function read_posts(req_id, call_id, args) {
     let arr = JSON.parse(args);
     let ret = [];
-    let id;
-    for (id in arr) {
-        let post = ab2str(DBGet("post_storage.js", id));
+    for (let i = 0; i < arr.length; i++) {
+        let post = JSON.parse(ab2str(DBGet("post_storage.js", arr[i])));
 	ret.push(post);
     }
     Reply(call_id, ServiceName, JSON.stringify(ret));

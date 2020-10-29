@@ -26,13 +26,13 @@ function str2ab(str) {
 
 function upload_post(req_id, call_id) {
     let post = new Object();
-    post.req_id = req_id;
     post.text = ab2str(DBGet("compose_post_service.js", req_id + "text"));
     post.post_id = ab2str(DBGet("compose_post_service.js", req_id + "post_id"));
     post.timestamp = new Date().getTime();
     post.post_type = ab2str(DBGet("compose_post_service.js", req_id + "post_type"));
     post.creator = ab2str(DBGet("compose_post_service.js", req_id + "creator"));
-    post.user_mentions = ab2str(DBGet("compose_post_service.js", req_id + "mentions"));
+    let user_mentions = ab2str(DBGet("compose_post_service.js", req_id + "mentions"));
+    post.user_mentions = user_mentions;
     post.media = ab2str(DBGet("compose_post_service.js", req_id + "media"));
     post.urls = ab2str(DBGet("compose_post_service.js", req_id + "urls"));
 
@@ -77,7 +77,7 @@ function upload_post(req_id, call_id) {
     args2.user_id = user_id;
     args2.timestamp = post.timestamp;
     args2.post_id = post.post_id;
-    args2.mentions = post.user_mentions;
+    args2.mentions = user_mentions;
 
     async_call(req_id, "write_home_timeline_service.js", "write_home_timeline", JSON.stringify(args2))
     .then(
