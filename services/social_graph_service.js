@@ -35,7 +35,6 @@ function follow(req_id, call_id, args) {
 	    update = JSON.parse(ab2str(followees));
 	} catch(e) {
             followees = DBGet("social_graph_service.js", user_id);
-	    print(ab2str(followees));
 	    update = JSON.parse(ab2str(followees));
 	}
     }
@@ -49,7 +48,6 @@ function follow(req_id, call_id, args) {
             followers = JSON.parse(ab2str(tmp));
         } catch(e) {
             tmp = DBGet("social_graph_service.js", followee_id + "followers");
-	    print(ab2str(tmp));
             followers = JSON.parse(ab2str(tmp));
         }
     }

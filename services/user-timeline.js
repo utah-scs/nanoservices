@@ -18,7 +18,6 @@ function read(req_id, call_id, args) {
     tmp.start = obj.parameters.start;
     tmp.end = obj.parameters.stop;
 
-    print(tmp);
     async_call(req_id, "user_timeline_service.js", "read_user_timeline", JSON.stringify(tmp))
     .then(
        result => {
