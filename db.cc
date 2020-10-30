@@ -43,7 +43,15 @@ db_val_t* database::ht_get(uint32_t key) {
     db_val_t* p = ht.table[hash];
     while (p && p->key != key)
         p = p->next;
-    return p;
+    
+    db_val_t* ret = NULL;
+    if (p) {
+        ret = (db_val_t*) malloc(sizeof(db_val_t));
+        ret->length = p->length;
+        ret->data = malloc(ret->length);
+        memcpy(ret->data, p->data, ret->length);
+    }
+    return ret;
 }
 
 db_val** database::get_table_direct(void)

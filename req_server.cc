@@ -309,6 +309,7 @@ void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(args.GetIsolate(), val->data, val->length);
 
     args.GetReturnValue().Set(ab);
+    free(val);
 }
 
 // C++ binding for JS functions to set data to hashtable
