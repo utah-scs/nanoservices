@@ -162,9 +162,10 @@ future<> scheduler::schedule(std::string req_id, std::string caller, std::string
     if (it != sched_map.end()) {
         auto to_sched = (sched_map[caller] + 1) % smp::count;
 	sched_map[caller] = to_sched;
-	if (to_sched != cpu)
+	if (to_sched != cpu) {
             return sched_server.invoke_on(to_sched, &scheduler::run_func, cpu, req_id,
                                   callee, prev_service, service, function, jsargs);
+	}
     } else
 	sched_map[caller] = cpu;
 
