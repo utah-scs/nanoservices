@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -106,7 +106,7 @@ function register(req_id, call_id, args) {
     let params = new Object();
     params.user_id = user_id;
     params.username = username;
-    return async_call(req_id, "user_service.js", "user_register", JSON.stringify(params))
+    return async_call(req_id, call_id, "user_service.js", "user_register", JSON.stringify(params))
     .then(
        result => {
             let rep = new Object();
@@ -132,7 +132,7 @@ function follow(req_id, call_id, args) {
     let params = new Object();
     params.username = username;
     params.followee_name = followee_name;
-    return async_call(req_id, "social_graph_service.js", "follow", JSON.stringify(params))
+    return async_call(req_id, call_id, "social_graph_service.js", "follow", JSON.stringify(params))
     .then(
        result => {
             let rep = new Object();

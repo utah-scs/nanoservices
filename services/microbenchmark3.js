@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -17,7 +17,7 @@ function func(req_id, call_id, args) {
     let endtime = new Date().getTime() + Number(ms);
     while (new Date().getTime() < endtime) {
     }
-    return async_call(req_id, "microbenchmark4.js", "func", args)
+    return async_call(req_id, call_id, "microbenchmark4.js", "func", args)
     .then(
        result => {
             let rep = new Object();

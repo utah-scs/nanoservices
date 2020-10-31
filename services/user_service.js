@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -38,7 +38,7 @@ function upload_creator_with_userid(req_id, call_id, user) {
     creator.username = obj.username;
     creator.user_id = obj.user_id;
     let arg = JSON.stringify(creator);
-    async_call(req_id, "compose_post_service.js", "upload_creator", arg)
+    async_call(req_id, call_id, "compose_post_service.js", "upload_creator", arg)
     .then(
         result => {
             Reply(call_id, ServiceName, "ok");

@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -37,7 +37,7 @@ function upload_user_mentions(req_id, call_id, arg) {
         results.userids.push(userid);
     }
     let ret = JSON.stringify(results);
-    async_call(req_id, "compose_post_service.js", "upload_user_mentions", ret)
+    async_call(req_id, call_id, "compose_post_service.js", "upload_user_mentions", ret)
     .then(
         result => {
             Reply(call_id, ServiceName, "ok");}

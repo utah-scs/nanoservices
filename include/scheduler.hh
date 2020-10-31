@@ -41,6 +41,7 @@ struct callback_states {
 class scheduler {
 private:
     std::unordered_map<std::string, void*> req_map;
+    std::unordered_map<std::string, size_t> sched_map;
 
 public:
     void start();
@@ -54,7 +55,7 @@ public:
     void new_service(std::string service);
     future<> new_req(std::unique_ptr<request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
     future<> run_func(size_t prev_cpu, std::string req_id, std::string call_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
-    future<> schedule(std::string req_id, std::string call_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
+    future<> schedule(std::string req_id, std::string caller, std::string callee, std::string prev_service, std::string service, std::string function, std::string jsargs);
     future<> reply(std::string req_id, std::string service, std::string ret);
 };
 

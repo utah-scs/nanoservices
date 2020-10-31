@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -37,7 +37,7 @@ function upload_post(req_id, call_id) {
     post.urls = ab2str(DBGet("compose_post_service.js", req_id + "urls"));
 
     let count = 0;
-    async_call(req_id, "post_storage.js", "store_post", JSON.stringify(post))
+    async_call(req_id, call_id, "post_storage.js", "store_post", JSON.stringify(post))
     .then(
        result => {
             count = count + 1;
@@ -59,7 +59,7 @@ function upload_post(req_id, call_id) {
     let args1 = new Object();
     args1.user_id = user_id;
     args1.post = JSON.stringify(tmp);
-    async_call(req_id, "user_timeline_service.js", "write_user_timeline", JSON.stringify(args1))
+    async_call(req_id, call_id, "user_timeline_service.js", "write_user_timeline", JSON.stringify(args1))
     .then(
        result => {
             count = count + 1;
@@ -79,7 +79,7 @@ function upload_post(req_id, call_id) {
     args2.post_id = post.post_id;
     args2.mentions = user_mentions;
 
-    async_call(req_id, "write_home_timeline_service.js", "write_home_timeline", JSON.stringify(args2))
+    async_call(req_id, call_id, "write_home_timeline_service.js", "write_home_timeline", JSON.stringify(args2))
     .then(
        result => {
             count = count + 1;

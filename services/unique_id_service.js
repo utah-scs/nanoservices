@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -36,7 +36,7 @@ function upload_unique_id(req_id, call_id, post_type) {
     params.post_id = post_id;
     params.post_type = post_type;
 
-    async_call(req_id, "compose_post_service.js", "upload_unique_id", JSON.stringify(params))
+    async_call(req_id, call_id, "compose_post_service.js", "upload_unique_id", JSON.stringify(params))
     .then(
        result => {
            Reply(call_id, ServiceName, "ok");

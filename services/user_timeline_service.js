@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -75,7 +75,7 @@ function read_user_timeline(req_id, call_id, args) {
 	posts.push(arr[i].post_id);
     }
     
-    async_call(req_id, "post_storage.js", "read_posts", JSON.stringify(posts))
+    async_call(req_id, call_id, "post_storage.js", "read_posts", JSON.stringify(posts))
     .then(
        result => {
             Reply(call_id, ServiceName, result);

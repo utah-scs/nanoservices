@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -26,7 +26,7 @@ function str2ab(str) {
 
 function write_home_timeline(req_id, call_id, args) {
     let obj = JSON.parse(args);
-    async_call(req_id, "social_graph_service.js", "get_followers", obj.user_id)
+    async_call(req_id, call_id, "social_graph_service.js", "get_followers", obj.user_id)
     .then(
        result => {
 	       let followers = JSON.parse(result);
@@ -44,7 +44,7 @@ function write_home_timeline(req_id, call_id, args) {
 	           let new_args = new Object();
 		   new_args.user_id = all[i];
 		   new_args.post = tmp;
-                   async_call(req_id, "user_timeline_service.js", "write_user_timeline", JSON.stringify(new_args))
+                   async_call(req_id, call_id, "user_timeline_service.js", "write_user_timeline", JSON.stringify(new_args))
                   .then(
                    result => {
                        count = count + 1;

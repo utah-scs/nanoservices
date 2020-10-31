@@ -376,17 +376,20 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     HandleScope handle_scope(isolate);
     auto context = args.GetIsolate()->GetCurrentContext();
 
-    v8::String::Utf8Value num(isolate, args[0]);
-    auto req_id = std::string(*num);
+    v8::String::Utf8Value num1(isolate, args[0]);
+    auto req_id = std::string(*num1);
 
-    v8::String::Utf8Value str1(args.GetIsolate(), args[1]);
+    v8::String::Utf8Value num2(isolate, args[1]);
+    auto caller = std::string(*num2);
+
+    v8::String::Utf8Value str1(args.GetIsolate(), args[2]);
     auto service = std::string(*str1);
-    v8::String::Utf8Value str2(args.GetIsolate(), args[2]);
+    v8::String::Utf8Value str2(args.GetIsolate(), args[3]);
     auto function = std::string(*str2);
 
-    Local<Function> callback = Local<Function>::Cast(args[3]);
+    Local<Function> callback = Local<Function>::Cast(args[4]);
 
-    v8::String::Utf8Value str3(args.GetIsolate(), args[4]);
+    v8::String::Utf8Value str3(args.GetIsolate(), args[5]);
     auto jsargs = std::string(*str3);
 
     Local<String> tmp = String::NewFromUtf8(isolate, "ServiceName", NewStringType::kNormal)
@@ -396,13 +399,13 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto states = new callback_states;
 
     auto gen = random_generator();
-    auto call_id = to_string(gen());
+    auto callee = to_string(gen());
 
     states->callback.Reset(isolate, callback);
-    auto key = service + call_id + "cb";
+    auto key = service + callee + "cb";
     get_local_sched()->set_req_states(key, (void*)states);
 
-    get_local_sched()->schedule(req_id, call_id, local_service, service, function, jsargs);
+    get_local_sched()->schedule(req_id, caller, callee, local_service, service, function, jsargs);
 }
 
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {

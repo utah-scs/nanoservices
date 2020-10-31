@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -18,7 +18,7 @@ function read(req_id, call_id, args) {
     tmp.start = obj.parameters.start;
     tmp.end = obj.parameters.stop;
 
-    async_call(req_id, "user_timeline_service.js", "read_user_timeline", JSON.stringify(tmp))
+    async_call(req_id, call_id, "user_timeline_service.js", "read_user_timeline", JSON.stringify(tmp))
     .then(
        result => {
 	    let rep = new Object();

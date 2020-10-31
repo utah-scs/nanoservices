@@ -1,6 +1,6 @@
-function async_call(req_id, service, func, args) {
+function async_call(req_id, call_id, service, func, args) {
     return new Promise(function(resolve, reject) {
-        Call(req_id, service, func,
+        Call(req_id, call_id, service, func,
             function(error, result) {
                 if (error) {
                     return reject(error);
@@ -40,7 +40,7 @@ function compose(req_id, call_id, args) {
     media_args.ids = media_ids;
     media_args.types = media_types;
 
-    async_call(req_id, "unique_id_service.js", "upload_unique_id", post_type)
+    async_call(req_id, call_id, "unique_id_service.js", "upload_unique_id", post_type)
     .then(
        result => {
 	    count = count + 1;
@@ -58,7 +58,7 @@ function compose(req_id, call_id, args) {
     user.user_id = userid;
     user.username = username;
     
-    async_call(req_id, "user_service.js", "upload_creator_with_userid", JSON.stringify(user))
+    async_call(req_id, call_id, "user_service.js", "upload_creator_with_userid", JSON.stringify(user))
     .then(
        result => {
 	    count = count + 1;
@@ -72,7 +72,7 @@ function compose(req_id, call_id, args) {
         }
     );
 	
-    async_call(req_id, "media_service.js", "upload_media", JSON.stringify(media_args))
+    async_call(req_id, call_id, "media_service.js", "upload_media", JSON.stringify(media_args))
     .then(
        result => {
 	    count = count + 1;
@@ -86,7 +86,7 @@ function compose(req_id, call_id, args) {
         }
     );
 	
-    return async_call(req_id, "text_service.js", "upload_text", text)
+    return async_call(req_id, call_id, "text_service.js", "upload_text", text)
     .then(
        result => {
 	    count = count + 1;

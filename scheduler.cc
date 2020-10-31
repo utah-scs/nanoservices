@@ -155,20 +155,30 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     return local_req_server().run_func(req_id, call_id, service, function, jsargs);
 }
 
-future<> scheduler::schedule(std::string req_id, std::string call_id, std::string prev_service, 
-		             std::string service, std::string function, std::string jsargs) {
+future<> scheduler::schedule(std::string req_id, std::string caller, std::string callee, 
+		std::string prev_service, std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
+    auto it = sched_map.find(caller);
+    if (it != sched_map.end()) {
+        auto to_sched = (sched_map[caller] + 1) % smp::count;
+	sched_map[caller] = to_sched;
+	if (to_sched != cpu)
+            return sched_server.invoke_on(to_sched, &scheduler::run_func, cpu, req_id,
+                                  callee, prev_service, service, function, jsargs);
+    } else
+	sched_map[caller] = cpu;
+
     auto u = get_utilization();
     utilization[cpu] = u; 
     if (u < 90)
-        return run_func(cpu, req_id, call_id, prev_service, service, function, jsargs);
+        return run_func(cpu, req_id, callee, prev_service, service, function, jsargs);
     else {
         size_t min = std::min_element(utilization.begin(), utilization.end()) - utilization.begin();
 	if (min != cpu && utilization[min] < 90)
 	    return sched_server.invoke_on(min , &scheduler::run_func, cpu, req_id,
-                                  call_id, prev_service, service, function, jsargs);
+                                  callee, prev_service, service, function, jsargs);
 	else
-            return run_func(cpu, req_id, call_id, prev_service, service, function, jsargs);
+            return run_func(cpu, req_id, callee, prev_service, service, function, jsargs);
     }
 }
 
@@ -177,6 +187,7 @@ future<> scheduler::reply(std::string call_id, std::string service, std::string 
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
+    sched_map.erase(call_id);
 
     if (states->local) {
         pt::ptree pt;
