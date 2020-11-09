@@ -12,7 +12,7 @@ function async_call(req_id, call_id, service, func, args) {
 }
 
 function ab2str(buf) {
-  return String.fromCharCode.apply(null, new Uint16Array(buf));
+  return String.fromCharCode.apply(null, new Uint16Array(buf)).substring(2);
 }
 
 function str2ab(str) {

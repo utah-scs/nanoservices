@@ -1,5 +1,5 @@
 function ab2str(buf) {
-  return String.fromCharCode.apply(null, new Uint16Array(buf));
+  return String.fromCharCode.apply(null, new Uint16Array(buf)).substring(2);
 }
 
 function str2ab(str) {
@@ -13,7 +13,9 @@ function str2ab(str) {
 
 function store_post(req_id, call_id, args) {
     let post_id = JSON.parse(args).post_id;
-    DBSet("post_storage.js", post_id, str2ab(args));
+    if (DBSet("post_storage.js", post_id, str2ab(args), 0) == "abort") {
+        print("Aborted.");
+    }
     Reply(call_id, ServiceName, "ok");
 }
 

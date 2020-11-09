@@ -12,7 +12,7 @@ function async_call(req_id, call_id, service, func, args) {
 }
 
 function ab2str(buf) {
-  return String.fromCharCode.apply(null, new Uint16Array(buf));
+  return String.fromCharCode.apply(null, new Uint16Array(buf)).substring(2);
 }
 
 function str2ab(str) {
@@ -24,35 +24,46 @@ function str2ab(str) {
   return buf;
 }
 
+function abversion(ab) {
+  let v = new DataView(ab);
+  return v.getUint32(0, true);
+}
+
 function follow(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let user_id = obj.username;
     let followee_id = obj.followee_name;
-    let followees = DBGet("social_graph_service.js", user_id);
-    let update = [];
-    if (followees.byteLength > 0) {
-	try {
-	    update = JSON.parse(ab2str(followees));
-	} catch(e) {
-            followees = DBGet("social_graph_service.js", user_id);
-	    update = JSON.parse(ab2str(followees));
-	}
+    let version;
+    let abort = "abort";
+    while (abort == "abort") {
+        let update = [];
+        let followees = DBGet("social_graph_service.js", user_id);
+        if (followees.byteLength > 0) {
+            update = JSON.parse(ab2str(followees));
+            version = abversion(followees);
+        } else
+            version = 0;
+ 
+        update.push(followee_id);
+        abort = DBSet("social_graph_service.js", 
+                user_id, str2ab(JSON.stringify(update)), version);
     }
-    update.push(followee_id);
-    DBSet("social_graph_service.js", user_id, str2ab(JSON.stringify(update)));
 
-    let followers = [];
-    let tmp = DBGet("social_graph_service.js", followee_id + "followers");
-    if (tmp.byteLength != 0) {
-	try {
+    abort = "abort";
+    while (abort == "abort") {
+        let followers = [];
+        let tmp = DBGet("social_graph_service.js", followee_id + "followers");
+        if (tmp.byteLength != 0) {
             followers = JSON.parse(ab2str(tmp));
-        } catch(e) {
-            tmp = DBGet("social_graph_service.js", followee_id + "followers");
-            followers = JSON.parse(ab2str(tmp));
-        }
+            version = abversion(tmp);
+        } else
+            version = 0;
+ 
+        followers.push(user_id);
+        abort = DBSet("social_graph_service.js", 
+                followee_id + "followers", str2ab(JSON.stringify(followers)), version);
     }
-    followers.push(user_id);
-    DBSet("social_graph_service.js", followee_id + "followers", str2ab(JSON.stringify(followers)));
+
     Reply(call_id, ServiceName, "ok");
 }
 

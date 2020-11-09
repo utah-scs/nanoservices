@@ -12,7 +12,7 @@ function async_call(req_id, call_id, service, func, args) {
 }
 
 function ab2str(buf) {
-  return String.fromCharCode.apply(null, new Uint16Array(buf));
+  return String.fromCharCode.apply(null, new Uint16Array(buf)).substring(2);
 }
 
 function str2ab(str) {
@@ -33,7 +33,9 @@ function init_db(req_id, call_id, args) {
     user.salt = "c748112bc027878aa62812ba1ae00e40ad46d497";
     user.password = Sha1("password" + user.salt);
     
-    DBSet("user.js", "user", str2ab(JSON.stringify(user)));
+    if (DBSet("user.js", "user", str2ab(JSON.stringify(user)), 0) == "abort") {
+        print("Aborted.");
+    }
     let rep = new Object();
     rep._status = 200;
     rep._message = "ok";

@@ -17,6 +17,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/uuid_generators.hpp>
+#include <stdlib.h>
 
 using namespace std;
 using namespace seastar;
@@ -331,17 +332,30 @@ void db_set(const v8::FunctionCallbackInfo<v8::Value>& args) {
     }
 
     auto content = args[2].As<v8::ArrayBuffer>()->Externalize();
+
+    auto version = args[3]->Uint32Value(ctx).ToChecked();
+
     db_val* val = (db_val*)malloc(sizeof(db_val));
-    val->data = content.Data();
-    val->length = content.ByteLength();
+    auto tmp = malloc(content.ByteLength() + sizeof(int));
+    auto p = (int*)tmp;
+    *p = rand();
+    p++;
+    memcpy(p, content.Data(), content.ByteLength());
+    val->data = tmp;
+    val->length = content.ByteLength() + sizeof(int);
     val->key = key;
 
-    db->ht_set(val);
+    free(content.Data());
 
-    args.GetReturnValue().Set(
-        v8::String::NewFromUtf8(args.GetIsolate(), "ok\n",
-                                v8::NewStringType::kNormal).ToLocalChecked());
-
+    if (db->ht_set(val, version)) {
+        args.GetReturnValue().Set(
+            v8::String::NewFromUtf8(args.GetIsolate(), "ok",
+                                    v8::NewStringType::kNormal).ToLocalChecked());
+    } else {
+         args.GetReturnValue().Set(
+            v8::String::NewFromUtf8(args.GetIsolate(), "abort",
+                                    v8::NewStringType::kNormal).ToLocalChecked());
+    }
 }
 
 void db_del(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -405,7 +419,7 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto key = service + callee + "cb";
     get_local_sched()->set_req_states(key, (void*)states);
 
-    get_local_sched()->schedule(req_id, caller, callee, local_service, service, function, jsargs);
+    engine().add_high_priority_task(make_task(default_scheduling_group(), [req_id, caller, callee, local_service, service, function, jsargs] () {get_local_sched()->schedule(req_id, caller, callee, local_service, service, function, jsargs);}));
 }
 
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {

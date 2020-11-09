@@ -17,7 +17,7 @@ function func(req_id, call_id, args) {
     let num = obj.headers.NUM;
     let endtime = new Date().getTime() + Number(ms);
 //    while (new Date().getTime() < endtime) {
-  //  }
+//    }
 
     let count = 0;
     for (let i = 0; i < num; i++) {

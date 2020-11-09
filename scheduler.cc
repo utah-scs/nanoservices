@@ -163,16 +163,23 @@ future<> scheduler::schedule(std::string req_id, std::string caller, std::string
         auto to_sched = (sched_map[caller] + 1) % smp::count;
 	sched_map[caller] = to_sched;
 	if (to_sched != cpu) {
-            return sched_server.invoke_on(to_sched, &scheduler::run_func, cpu, req_id,
-                                  callee, prev_service, service, function, jsargs);
+            engine().add_high_priority_task(make_task(default_scheduling_group(), 
+				    [to_sched, cpu, req_id, callee, prev_service, service, function, jsargs]() {
+				    sched_server.invoke_on(to_sched, &scheduler::run_func, cpu, req_id, callee, prev_service, service, function, jsargs);}
+				    ));
+	    return make_ready_future<>();
 	}
     } else
 	sched_map[caller] = cpu;
 
     auto u = get_utilization();
     utilization[cpu] = u; 
-    if (u < 90)
-        return run_func(cpu, req_id, callee, prev_service, service, function, jsargs);
+    if (u < 90) {
+	engine().add_task(make_task(default_scheduling_group(), [this, cpu, req_id, callee, prev_service, service, function, jsargs] () {
+            return run_func(cpu, req_id, callee, prev_service, service, function, jsargs);
+	}));
+        return make_ready_future<>();
+    }
     else {
         size_t min = std::min_element(utilization.begin(), utilization.end()) - utilization.begin();
 	if (min != cpu && utilization[min] < 90)

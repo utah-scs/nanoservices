@@ -12,7 +12,7 @@ function async_call(req_id, call_id, service, func, args) {
 }
 
 function ab2str(buf) {
-  return String.fromCharCode.apply(null, new Uint16Array(buf));
+  return String.fromCharCode.apply(null, new Uint16Array(buf)).substring(2);
 }
 
 function str2ab(str) {
@@ -24,11 +24,16 @@ function str2ab(str) {
   return buf;
 }
 
+function abversion(ab) {
+  let v = new DataView(ab);
+  return v.getUint32(0, true);
+}
+
 function user_register(req_id, call_id, args) {
     let obj = JSON.parse(args);
     let userid = obj.user_id;
     let username = obj.username;
-    DBSet("user_mention_service.js", username, str2ab(userid));
+    DBSet("user_mention_service.js", username, str2ab(userid), 0);
     Reply(call_id, ServiceName, "ok");
 }
 

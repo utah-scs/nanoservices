@@ -12,7 +12,7 @@ function async_call(req_id, call_id, service, func, args) {
 }
 
 function ab2str(buf) {
-  return String.fromCharCode.apply(null, new Uint16Array(buf));
+  return String.fromCharCode.apply(null, new Uint16Array(buf)).substring(2);
 }
 
 function str2ab(str) {
@@ -22,6 +22,11 @@ function str2ab(str) {
     bufView[i] = str.charCodeAt(i);
   }
   return buf;
+}
+
+function abversion(ab) {
+  let v = new DataView(ab);
+  return v.getUint32(0, true);
 }
 
 Array.prototype.push_sorted = function(e, compare) {
@@ -50,13 +55,20 @@ const comp = (a, b) => a.timestamp > b.timestamp;
 function write_user_timeline(req_id, call_id, args) {
     let e = JSON.parse(args);
     let post = JSON.parse(e.post);
-    let posts = [];
-    let tmp = DBGet("user_timeline_service.js", e.user_id);
-    if (tmp.byteLength != 0)
-	posts = JSON.parse(ab2str(tmp));
-    
-    posts.push_sorted(post, comp);
-    DBSet("user_timeline_service.js", e.user_id, str2ab(JSON.stringify(posts)));
+    let abort = "abort";
+    while (abort == "abort") {
+        let posts = [];
+        let tmp = DBGet("user_timeline_service.js", e.user_id);
+        let version;
+        if (tmp.byteLength != 0) {
+            posts = JSON.parse(ab2str(tmp));
+            version = abversion(tmp);
+        } else
+            version = 0;
+        
+        posts.push_sorted(post, comp);
+        abort = DBSet("user_timeline_service.js", e.user_id, str2ab(JSON.stringify(posts)), version);
+    }
 
     Reply(call_id, ServiceName, "ok");
     return;

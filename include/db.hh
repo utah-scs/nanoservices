@@ -55,7 +55,7 @@ public:
 
     void hashtable_init(uint32_t size);
 
-    void ht_set(db_val_t* val);
+    bool ht_set(db_val_t* val, int version);
 
     db_val_t* ht_get(uint32_t key);
 
