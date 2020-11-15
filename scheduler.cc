@@ -158,7 +158,7 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 future<> scheduler::schedule(std::string req_id, std::string caller, std::string callee, 
 		std::string prev_service, std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
-    auto it = sched_map.find(caller);
+/*    auto it = sched_map.find(caller);
     if (it != sched_map.end()) {
         auto to_sched = (sched_map[caller] + 1) % smp::count;
 	sched_map[caller] = to_sched;
@@ -171,7 +171,7 @@ future<> scheduler::schedule(std::string req_id, std::string caller, std::string
 	}
     } else
 	sched_map[caller] = cpu;
-
+*/
     auto u = get_utilization();
     utilization[cpu] = u; 
     if (u < 90) {
