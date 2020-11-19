@@ -1,0 +1,2 @@
+service Service {
+string ping(); }
