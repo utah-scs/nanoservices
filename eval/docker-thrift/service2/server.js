@@ -1,15 +1,48 @@
-const express = require('express');
+//const http = require('http')
+//const express = require('express');
+const thrift = require('thrift');
 const port = process.env.SERVER_PORT || 4000;
-const app = express();
+//const app = express();
+const assert = require('assert');
+const Service = require('./gen-nodejs/Service.js');
 
-app.all('/microbenchmark/func', function (req, res) {
+let server = thrift.createServer(Service, {
+    ping: function (result) {
+            console.log("Ping!"); 
+            result(null, "Pong");
+    }, 
+    wait: function (ms, result) {
+	    let endtime = new Date().getTime() + ms;
+            while (new Date().getTime() < endtime) {
+            }
+            result(null, "OK");
+    }, 
+});
+
+server.listen(port);
+
+/*app.all('/microbenchmark/func', function (req, res) {
     let ms = req.header('MS')
     let endtime = new Date().getTime() + Number(ms);
     while (new Date().getTime() < endtime) {
     }
-    res.send("OK")
-})
 
-app.listen(port, () => {
-console.info(`Server started on port ${port}`);
-});
+    let connection = thrift.createConnection(`localhost`, 9090, {
+        transport: thrift.TBufferedTransport,
+        protocol: thrift.TbinaryProtocol });
+
+    let client = thrift.createClient(Service, connection);
+
+    client.wait(ms, function (err, response) {
+        res.send("OK")
+    });
+
+    connection.on('error', function (err) {
+        res.sendStatus(500);
+    });
+
+})*/
+
+//app.listen(port, () => {
+//console.info(`Server started on port ${port}`);
+//});
