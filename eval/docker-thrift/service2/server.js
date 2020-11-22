@@ -1,7 +1,7 @@
 //const http = require('http')
 //const express = require('express');
 const thrift = require('thrift');
-const port = process.env.SERVER_PORT || 4000;
+const port = process.env.SERVER_PORT || 3000;
 //const app = express();
 const assert = require('assert');
 const Service = require('./gen-nodejs/Service.js');
@@ -15,7 +15,21 @@ let server = thrift.createServer(Service, {
 	    let endtime = new Date().getTime() + ms;
             while (new Date().getTime() < endtime) {
             }
-            result(null, "OK");
+            let connection = thrift.createConnection(`localhost`, 4000, {
+                transport: thrift.TBufferedTransport,
+                protocol: thrift.TbinaryProtocol });
+  
+            let client = thrift.createClient(Service, connection);
+  
+            client.wait(ms, function (err, response) {
+                result(null, "OK");
+            });
+  
+            connection.on('error', function (err) {
+                console.log("Error!"); 
+                result(null, "ERROR");
+            });
+
     }, 
 });
 

@@ -6,15 +6,17 @@ services:
     ports:
       - "8080:8080"
 
-        #  service2:
-        #    image: microbench2
-        #    ports:
-        #      - "2000:2000"
+  service2:
+    image: microbench2
+    network_mode: "host"
+    ports:
+      - "2000:2000"
 
-        #  service3:
-        #    image: microbench3
-        #    ports:
-        #      - "3000:3000"
+  service3:
+    image: microbench3
+    network_mode: "host"
+    ports:
+      - "3000:3000"
 
   service4:
     image: microbench4

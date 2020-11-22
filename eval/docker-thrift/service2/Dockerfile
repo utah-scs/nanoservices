@@ -15,7 +15,7 @@ RUN apt-get install thrift-compiler --yes
 COPY . /src
 COPY ./gen-nodejs /src/gen-nodejs
 
-EXPOSE 4000
+EXPOSE 3000
 
 CMD npm start
 #FROM apache/thrift

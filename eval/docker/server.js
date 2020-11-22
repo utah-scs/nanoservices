@@ -1,6 +1,6 @@
 const http = require('http')
 const express = require('express');
-const port = process.env.SERVER_PORT || 3000;
+const port = process.env.SERVER_PORT || 8080;
 const app = express();
 
 app.all('/microbenchmark/func', function (req, res) {
@@ -10,8 +10,8 @@ app.all('/microbenchmark/func', function (req, res) {
     }
 
     let options = {
-      hostname: 'docker_service4_1',
-      port: 4000,
+      hostname: 'docker_service2_1',
+      port: 2000,
       path: '/microbenchmark/func',
       method: 'POST',
       headers: {
