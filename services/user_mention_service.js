@@ -40,6 +40,6 @@ function upload_user_mentions(req_id, call_id, arg) {
     async_call(req_id, call_id, "compose_post_service.js", "upload_user_mentions", ret)
     .then(
         result => {
-            Reply(call_id, ServiceName, "ok");}
+            Reply(req_id, call_id, ServiceName, "ok");}
     );
 }

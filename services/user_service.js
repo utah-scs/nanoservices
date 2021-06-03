@@ -34,7 +34,7 @@ function user_register(req_id, call_id, args) {
     let userid = obj.user_id;
     let username = obj.username;
     DBSet("user_mention_service.js", username, str2ab(userid), 0);
-    Reply(call_id, ServiceName, "ok");
+    Reply(req_id, call_id, ServiceName, "ok");
 }
 
 function upload_creator_with_userid(req_id, call_id, user) {
@@ -46,6 +46,6 @@ function upload_creator_with_userid(req_id, call_id, user) {
     async_call(req_id, call_id, "compose_post_service.js", "upload_creator", arg)
     .then(
         result => {
-            Reply(call_id, ServiceName, "ok");
+            Reply(req_id, call_id, ServiceName, "ok");
 	});
 }

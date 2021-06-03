@@ -34,6 +34,6 @@ function upload_urls(req_id, call_id, arg) {
     }
     let ret = JSON.stringify(results);
     async_call(req_id, call_id, "compose_post_service.js", "upload_urls", ret);
-    Reply(call_id, ServiceName, ret);
+    Reply(req_id, call_id, ServiceName, ret);
 }
 

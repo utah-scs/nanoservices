@@ -30,7 +30,7 @@ function func(req_id, call_id, args) {
                     rep._status = 200;
                     rep._message = "OK";
                     let ret = JSON.stringify(rep);
-                    Reply(call_id, ServiceName, ret);
+                    Reply(req_id, call_id, ServiceName, ret);
                 }
            }
         );

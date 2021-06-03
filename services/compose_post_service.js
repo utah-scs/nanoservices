@@ -51,7 +51,7 @@ function upload_post(req_id, call_id) {
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(call_id, ServiceName, ret);
+                Reply(req_id, call_id, ServiceName, ret);
             }
         }
     );
@@ -73,7 +73,7 @@ function upload_post(req_id, call_id) {
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(call_id, ServiceName, ret);
+                Reply(req_id, call_id, ServiceName, ret);
             }
         }
     );
@@ -93,7 +93,7 @@ function upload_post(req_id, call_id) {
                 rep._status = 200;
                 rep._message = result;
                 let ret = JSON.stringify(rep);
-                Reply(call_id, ServiceName, ret);
+                Reply(req_id, call_id, ServiceName, ret);
             }
         }
     );
@@ -119,7 +119,7 @@ function check_upload_post(req_id, call_id) {
             }
         }
     }
-    Reply(call_id, ServiceName, "ok");
+    Reply(req_id, call_id, ServiceName, "ok");
 }
 
 function upload_urls(req_id, call_id, urls) {

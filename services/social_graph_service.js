@@ -64,7 +64,7 @@ function follow(req_id, call_id, args) {
                 followee_id + "followers", str2ab(JSON.stringify(followers)), version);
     }
 
-    Reply(call_id, ServiceName, "ok");
+    Reply(req_id, call_id, ServiceName, "ok");
 }
 
 function get_followers(req_id, call_id, user_id) {
@@ -74,5 +74,5 @@ function get_followers(req_id, call_id, user_id) {
         followers = ab2str(tmp);
     else
 	followers = "[]";
-    Reply(call_id, ServiceName, followers);
+    Reply(req_id, call_id, ServiceName, followers);
 }

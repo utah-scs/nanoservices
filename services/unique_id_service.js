@@ -39,7 +39,7 @@ function upload_unique_id(req_id, call_id, post_type) {
     async_call(req_id, call_id, "compose_post_service.js", "upload_unique_id", JSON.stringify(params))
     .then(
        result => {
-           Reply(call_id, ServiceName, "ok");
+           Reply(req_id, call_id, ServiceName, "ok");
        }
     );
 }

@@ -40,7 +40,7 @@ function init_db(req_id, call_id, args) {
     rep._status = 200;
     rep._message = "ok";
     let ret = JSON.stringify(rep);
-    Reply(call_id, ServiceName, ret);
+    Reply(req_id, call_id, ServiceName, ret);
 }
 
 function login(req_id, call_id, args) {
@@ -60,7 +60,7 @@ function login(req_id, call_id, args) {
         rep._message = "ok";
     }
     let ret = JSON.stringify(rep);
-    Reply(call_id, ServiceName, ret);
+    Reply(req_id, call_id, ServiceName, ret);
 }
 
 function mongo_login(req_id, call_id, args) {
@@ -82,7 +82,7 @@ function mongo_login(req_id, call_id, args) {
         rep._message = "ok";
     }
     let ret = JSON.stringify(rep);
-    Reply(call_id, ServiceName, ret);
+    Reply(req_id, call_id, ServiceName, ret);
 }
 
 function register(req_id, call_id, args) {
@@ -115,7 +115,7 @@ function register(req_id, call_id, args) {
             rep._status = 200;
             rep._message = "OK";
             let ret = JSON.stringify(rep);
-            Reply(call_id, ServiceName, ret);}
+            Reply(req_id, call_id, ServiceName, ret);}
     );
 }
 
@@ -141,6 +141,6 @@ function follow(req_id, call_id, args) {
             rep._status = 200;
             rep._message = "OK";
             let ret = JSON.stringify(rep);
-            Reply(call_id, ServiceName, ret);}
+            Reply(req_id, call_id, ServiceName, ret);}
     );
 }

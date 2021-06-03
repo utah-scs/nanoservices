@@ -28,8 +28,16 @@ void* scheduler::get_req_states(std::string key) {
     return req_map[key];
 }
 
+void* scheduler::get_wf_states(std::string key) {
+    return wf_map[key];
+}
+
 void scheduler::set_req_states(std::string key, void* states) {
     req_map[key] = states;
+}
+
+void scheduler::set_wf_states(std::string key, void* states) {
+    wf_map[key] = states;
 }
 
 // Write the current date in the specific "preferred format" defined in
@@ -82,12 +90,29 @@ static double get_utilization(void) {
     return 0;
 }
 
-future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out) {
+void scheduler::dispatch(std::string req_id, bool new_wf, bool complete_wf) {
+    for (auto &wf : wf_map) {
+	auto workflow_states = (struct wf_states*)wf.second;
+        while (workflow_states->q.size()) {
+	    engine().add_task(workflow_states->q.front());
+	    workflow_states->q.pop();
+	}
+    }
+    if (complete_wf)
+        wf_map.erase(req_id);
+}
+
+future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, int64_t ts,
+		sstring service, sstring function, std::string args, output_stream<char>& out) {
     auto key = service + req_id + "reply";
     auto new_states = new local_reply_states;
     new_states->local = true;
     auto f = new_states->res.get_future();
     req_map[key] = (void*)new_states;
+
+    auto workflow_states = new wf_states;
+    workflow_states->ts = ts;
+    wf_map[req_id] = (void*)workflow_states;
 
     auto resp = std::make_shared<httpd::reply>();
     bool conn_keep_alive = false;
@@ -120,7 +145,14 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, ss
     resp->_headers["Server"] = "Seastar httpd";
     resp->_headers["Date"] = http_date();
 
-    local_req_server().js_req(req_id, service, function, args, out);
+    workflow_states->q.push(
+        make_task(default_scheduling_group(), [this, req_id, service, function, args, &out] () {
+            local_req_server().js_req(req_id, service, function, args, out);
+        })
+    );
+
+    dispatch(req_id, true, false);
+
     return f.then([&out, resp = std::move(resp)] (auto&& res) {
 	resp->set_status(res._status, res._message);
 	resp->done();
@@ -152,33 +184,25 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     auto key = service + call_id + "reply";
     req_map[key] = (void*)new_states;
 
-    return local_req_server().run_func(req_id, call_id, service, function, jsargs);
+    auto workflow_states = (struct wf_states*)wf_map[req_id];
+
+    workflow_states->q.push(
+        make_task(default_scheduling_group(), [this, req_id, call_id, service, function, jsargs] () {
+            local_req_server().run_func(req_id, call_id, service, function, jsargs);
+        })
+    );
+
+    dispatch(req_id, false, true);
+    return make_ready_future<>();
 }
 
 future<> scheduler::schedule(std::string req_id, std::string caller, std::string callee, 
 		std::string prev_service, std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
-/*    auto it = sched_map.find(caller);
-    if (it != sched_map.end()) {
-        auto to_sched = (sched_map[caller] + 1) % smp::count;
-	sched_map[caller] = to_sched;
-	if (to_sched != cpu) {
-            engine().add_high_priority_task(make_task(default_scheduling_group(), 
-				    [to_sched, cpu, req_id, callee, prev_service, service, function, jsargs]() {
-				    sched_server.invoke_on(to_sched, &scheduler::run_func, cpu, req_id, callee, prev_service, service, function, jsargs);}
-				    ));
-	    return make_ready_future<>();
-	}
-    } else
-	sched_map[caller] = cpu;
-*/
     auto u = get_utilization();
     utilization[cpu] = u; 
     if (u < 90) {
-	engine().add_task(make_task(default_scheduling_group(), [this, cpu, req_id, callee, prev_service, service, function, jsargs] () {
             return run_func(cpu, req_id, callee, prev_service, service, function, jsargs);
-	}));
-        return make_ready_future<>();
     }
     else {
         size_t min = std::min_element(utilization.begin(), utilization.end()) - utilization.begin();
@@ -190,12 +214,12 @@ future<> scheduler::schedule(std::string req_id, std::string caller, std::string
     }
 }
 
-future<> scheduler::reply(std::string call_id, std::string service, std::string ret) {
+future<> scheduler::reply(std::string req_id, std::string call_id, std::string service, std::string ret) {
+    auto cpu = engine().cpu_id();
     auto key = service + call_id + "reply";
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
-    sched_map.erase(call_id);
 
     if (states->local) {
         pt::ptree pt;
@@ -209,12 +233,28 @@ future<> scheduler::reply(std::string call_id, std::string service, std::string 
 
 	auto s = (struct local_reply_states*)states;
         s->res.set_value(rep);
+
+	dispatch(req_id, false, true);
+
 	return make_ready_future<>();
         //return states->out->write(std::move(reply_builder::build_direct(msg_ok, msg_ok.size())))
 	//    .then([&states] () {
         //        free(states);
 	//    });
     } else {
-        return req_server.invoke_on(states->prev_cpuid, &req_service::run_callback, call_id, service, ret);
+        if (states->prev_cpuid == cpu) {
+	    auto workflow_states = (struct wf_states*)wf_map[req_id];
+
+            workflow_states->q.push(
+                make_task(default_scheduling_group(), [this, call_id, service, ret] () {
+                    local_req_server().run_callback(call_id, service, ret);
+                })
+            );
+	    dispatch(req_id, false, false);
+            return make_ready_future<>();
+	} else {
+	    dispatch(req_id, false, false);
+            return req_server.invoke_on(states->prev_cpuid, &req_service::run_callback, call_id, service, ret);
+	}
     }
 }

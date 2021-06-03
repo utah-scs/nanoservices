@@ -70,7 +70,7 @@ function write_user_timeline(req_id, call_id, args) {
         abort = DBSet("user_timeline_service.js", e.user_id, str2ab(JSON.stringify(posts)), version);
     }
 
-    Reply(call_id, ServiceName, "ok");
+    Reply(req_id, call_id, ServiceName, "ok");
     return;
 }
 
@@ -90,7 +90,7 @@ function read_user_timeline(req_id, call_id, args) {
     async_call(req_id, call_id, "post_storage.js", "read_posts", JSON.stringify(posts))
     .then(
        result => {
-            Reply(call_id, ServiceName, result);
+            Reply(req_id, call_id, ServiceName, result);
         }
     ); 
 }

@@ -43,6 +43,6 @@ function test(req_id, args) {
             rep._status = 200;
             rep._message = result;
             let ret = JSON.stringify(rep);
-	    Reply(req_id, ServiceName, ret);}
+	    Reply(req_id, call_id, ServiceName, ret);}
     );
 }

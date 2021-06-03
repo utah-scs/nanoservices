@@ -145,7 +145,7 @@ future<> req_service::register_service(std::string service) {
     return make_ready_future<>();
 }
 
-future<> req_service::run_callback(std::string call_id, std::string service, sstring ret) {
+void req_service::run_callback(std::string call_id, std::string service, sstring ret) {
     v8::Locker locker{isolate};
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -169,10 +169,9 @@ future<> req_service::run_callback(std::string call_id, std::string service, sst
 
     } else {
     }
-    return make_ready_future<>();
 }
 
-future<> req_service::run_func(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs) {
+void req_service::run_func(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs) {
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -207,11 +206,12 @@ future<> req_service::run_func(std::string req_id, std::string call_id, std::str
 
     } else {
     }
-    return make_ready_future<>();
 }
 
 // Run JavaScript function
-future<> req_service::js_req(std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out) {
+void req_service::js_req(std::string req_id, sstring service, 
+		sstring function, std::string args, output_stream<char>& out) {
+
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -232,7 +232,7 @@ future<> req_service::js_req(std::string req_id, sstring service, sstring functi
          printf("get function %s fail\n", function.c_str());
     }
     process_fun = Local<Function>::Cast(process_val);
- 
+    
     Local<Value> result;
 
     const int argc = 3;
@@ -243,10 +243,9 @@ future<> req_service::js_req(std::string req_id, sstring service, sstring functi
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
          auto cstr = "error\n";
-         get_local_sched()->reply(req_id, service, to_sstring(cstr));
+         get_local_sched()->reply(req_id, req_id, service, to_sstring(cstr));
     } else {
     }
-    return make_ready_future<>();
 }
 
 enum AllocationSpace {
@@ -262,7 +261,6 @@ enum AllocationSpace {
   LAST_PAGED_SPACE = MAP_SPACE
 };
 
-// The JS thread. Keep this thread although it's doing nothing, because 
 // The JS thread. Keep this thread although it's doing nothing, because 
 // performance is better with this thread around, maybe because it keeps
 // some V8 states from garbage collectioned or something.
@@ -419,7 +417,7 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto key = service + callee + "cb";
     get_local_sched()->set_req_states(key, (void*)states);
 
-    engine().add_high_priority_task(make_task(default_scheduling_group(), [req_id, caller, callee, local_service, service, function, jsargs] () {get_local_sched()->schedule(req_id, caller, callee, local_service, service, function, jsargs);}));
+    get_local_sched()->schedule(req_id, caller, callee, local_service, service, function, jsargs);
 }
 
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -435,13 +433,16 @@ void reply(const v8::FunctionCallbackInfo<v8::Value>& args) {
     Isolate * isolate = args.GetIsolate();
     HandleScope handle_scope(isolate);
 
-    v8::String::Utf8Value num(isolate, args[0]);
-    auto call_id = std::string(*num);
-    v8::String::Utf8Value str1(isolate, args[1]);
+    v8::String::Utf8Value num1(isolate, args[0]);
+    auto req_id = std::string(*num1);
+
+    v8::String::Utf8Value num2(isolate, args[1]);
+    auto call_id = std::string(*num2);
+    v8::String::Utf8Value str1(isolate, args[2]);
     auto service = std::string(*str1);
-    v8::String::Utf8Value str2(isolate, args[2]);
+    v8::String::Utf8Value str2(isolate, args[3]);
     auto ret = std::string(*str2);
-    get_local_sched()->reply(call_id, service, ret);
+    get_local_sched()->reply(req_id, call_id, service, ret);
 }
 
 void sha1(const v8::FunctionCallbackInfo<v8::Value>& args) {

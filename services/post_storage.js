@@ -16,12 +16,12 @@ function store_post(req_id, call_id, args) {
     if (DBSet("post_storage.js", post_id, str2ab(args), 0) == "abort") {
         print("Aborted.");
     }
-    Reply(call_id, ServiceName, "ok");
+    Reply(req_id, call_id, ServiceName, "ok");
 }
 
 function read_post(req_id, call_id, post_id) {
     let post = ab2str(DBGet("post_storage.js", post_id));
-    Reply(call_id, ServiceName, post);
+    Reply(req_id, call_id, ServiceName, post);
 }
 
 function read_posts(req_id, call_id, args) {
@@ -31,5 +31,5 @@ function read_posts(req_id, call_id, args) {
         let post = JSON.parse(ab2str(DBGet("post_storage.js", arr[i])));
 	ret.push(post);
     }
-    Reply(call_id, ServiceName, JSON.stringify(ret));
+    Reply(req_id, call_id, ServiceName, JSON.stringify(ret));
 }

@@ -30,7 +30,7 @@ function upload_text(req_id, call_id, val) {
                async_call(req_id, call_id, "compose_post_service.js", "upload_text", updated_text)
 	       .then(
                    result => {
-	               Reply(call_id, ServiceName, "ok");
+	               Reply(req_id, call_id, ServiceName, "ok");
 		   }
 	       );
        }

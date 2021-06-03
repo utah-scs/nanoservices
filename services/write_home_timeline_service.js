@@ -49,7 +49,7 @@ function write_home_timeline(req_id, call_id, args) {
                    result => {
                        count = count + 1;
                        if (count == all.length)
-                           Reply(call_id, ServiceName, "ok");
+                           Reply(req_id, call_id, ServiceName, "ok");
                    });
 	       }
                      //      Reply(call_id, ServiceName, "ok");
