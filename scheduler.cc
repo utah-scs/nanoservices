@@ -98,8 +98,9 @@ void scheduler::dispatch(std::string req_id, bool new_wf, bool complete_wf) {
 	    workflow_states->q.pop();
 	}
     }
-    if (complete_wf)
+    if (complete_wf) {
         wf_map.erase(req_id);
+    }
 }
 
 future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, int64_t ts,
@@ -192,7 +193,7 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         })
     );
 
-    dispatch(req_id, false, true);
+    dispatch(req_id, false, false);
     return make_ready_future<>();
 }
 
@@ -246,10 +247,11 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	    auto workflow_states = (struct wf_states*)wf_map[req_id];
 
             workflow_states->q.push(
-                make_task(default_scheduling_group(), [this, call_id, service, ret] () {
+                std::move(make_task(default_scheduling_group(), [this, call_id, service, ret] () {
                     local_req_server().run_callback(call_id, service, ret);
-                })
+                }))
             );
+
 	    dispatch(req_id, false, false);
             return make_ready_future<>();
 	} else {
