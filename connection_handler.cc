@@ -8,7 +8,6 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <string>
-#include <chrono>
 
 using namespace seastar;
 using namespace boost::uuids;
@@ -146,8 +145,6 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
 //            return make_ready_future<>();
 //        }
         return read_request_body(in, std::move(req)).then([this, &out] (std::unique_ptr<httpd::request> req) {
-	    using namespace std::chrono;
-	    int64_t ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 	    auto gen = random_generator();
 	    auto req_id = to_string(gen());
 
@@ -177,7 +174,7 @@ future<> connection_handler::handle(input_stream<char>& in, output_stream<char>&
 	    std::stringstream args;
 	    pt::write_json(args, root);
 
-	    return get_local_sched()->new_req(std::move(req), req_id, ts,
+	    return get_local_sched()->new_req(std::move(req), req_id,
 			    service + ".js", function, args.str(), out);
         });
 

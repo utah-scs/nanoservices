@@ -103,8 +103,9 @@ void scheduler::dispatch(std::string req_id, bool new_wf, bool complete_wf) {
     }
 }
 
-future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, int64_t ts,
+future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, 
 		sstring service, sstring function, std::string args, output_stream<char>& out) {
+    uint64_t ts = count++;
     auto key = service + req_id + "reply";
     auto new_states = new local_reply_states;
     new_states->local = true;

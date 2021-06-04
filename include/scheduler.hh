@@ -40,7 +40,7 @@ struct callback_states {
 };
 
 struct wf_states {
-    int64_t ts;
+    uint64_t ts;
     std::queue<task*> q;
     wf_states() {
     }
@@ -51,6 +51,7 @@ class scheduler {
 private:
     std::unordered_map<std::string, void*> req_map;
     std::unordered_map<std::string, void*> wf_map;
+    uint64_t count = 0;
 
 public:
     void start();
@@ -65,7 +66,7 @@ public:
     scheduler() {};
     void new_service(std::string service);
     void dispatch(std::string req_id, bool new_wf, bool complete_wf);
-    future<> new_req(std::unique_ptr<request> req, std::string req_id, int64_t ts, sstring service, sstring function, std::string args, output_stream<char>& out);
+    future<> new_req(std::unique_ptr<request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
     future<> run_func(size_t prev_cpu, std::string req_id, std::string call_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
     future<> schedule(std::string req_id, std::string caller, std::string callee, std::string prev_service, std::string service, std::string function, std::string jsargs);
     future<> reply(std::string req_id, std::string call_id, std::string service, std::string ret);
