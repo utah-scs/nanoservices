@@ -47,8 +47,44 @@ struct wf_states {
     ~wf_states() {}
 };
 
+class cmp {
+public:
+    bool operator() (struct wf_states* &left, struct wf_states* &right) { 
+        return (left->ts) > (right->ts);
+    }
+};
+
+class local_scheduler {
+private:
+    std::priority_queue<struct wf_states*, std::vector<struct wf_states*>, cmp> wf_queue;
+
+public:
+    local_scheduler() {};
+   
+    void dispatch(void) {
+        auto workflow_states = wf_queue.top();
+        cout << workflow_states->ts << endl;
+
+        while (workflow_states->q.size()) {
+            engine().add_task(workflow_states->q.front());
+            workflow_states->q.pop();
+        }
+    };
+
+     void new_wf(struct wf_states* workflow_states) {
+        wf_queue.push(workflow_states);
+        dispatch();
+    };
+ 
+    void complete_wf(std::string req_id) {
+        wf_queue.pop();
+        dispatch();
+    };
+};
+
 class scheduler {
 private:
+    class local_scheduler local_sched;
     std::unordered_map<std::string, void*> req_map;
     std::unordered_map<std::string, void*> wf_map;
     uint64_t count = 0;
@@ -59,6 +95,10 @@ public:
     void set_req_states(std::string key, void* states);
     void* get_wf_states(std::string key);
     void set_wf_states(std::string key, void* states);
+    void delete_wf_states(std::string req_id) {
+	wf_map.erase(req_id);
+	local_sched.complete_wf(req_id);
+    };
 
     future<> stop() {
       return make_ready_future<>();
@@ -66,7 +106,7 @@ public:
     scheduler() {};
     void new_service(std::string service);
     void dispatch(std::string req_id, bool new_wf, bool complete_wf);
-    future<> new_req(std::unique_ptr<request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
+    future<> new_req(std::unique_ptr<httpd::request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
     future<> run_func(size_t prev_cpu, std::string req_id, std::string call_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
     future<> schedule(std::string req_id, std::string caller, std::string callee, std::string prev_service, std::string service, std::string function, std::string jsargs);
     future<> reply(std::string req_id, std::string call_id, std::string service, std::string ret);

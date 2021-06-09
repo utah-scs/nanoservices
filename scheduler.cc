@@ -90,20 +90,7 @@ static double get_utilization(void) {
     return 0;
 }
 
-void scheduler::dispatch(std::string req_id, bool new_wf, bool complete_wf) {
-    for (auto &wf : wf_map) {
-	auto workflow_states = (struct wf_states*)wf.second;
-        while (workflow_states->q.size()) {
-	    engine().add_task(workflow_states->q.front());
-	    workflow_states->q.pop();
-	}
-    }
-    if (complete_wf) {
-        wf_map.erase(req_id);
-    }
-}
-
-future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id, 
+future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req_id, 
 		sstring service, sstring function, std::string args, output_stream<char>& out) {
     uint64_t ts = count++;
     auto key = service + req_id + "reply";
@@ -153,7 +140,7 @@ future<> scheduler::new_req(std::unique_ptr<request> req, std::string req_id,
         })
     );
 
-    dispatch(req_id, true, false);
+    local_sched.new_wf(workflow_states);
 
     return f.then([&out, resp = std::move(resp)] (auto&& res) {
 	resp->set_status(res._status, res._message);
@@ -194,7 +181,7 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         })
     );
 
-    dispatch(req_id, false, false);
+    local_sched.dispatch();
     return make_ready_future<>();
 }
 
@@ -236,7 +223,7 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	auto s = (struct local_reply_states*)states;
         s->res.set_value(rep);
 
-	dispatch(req_id, false, true);
+	delete_wf_states(req_id);
 
 	return make_ready_future<>();
         //return states->out->write(std::move(reply_builder::build_direct(msg_ok, msg_ok.size())))
@@ -253,10 +240,10 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
                 }))
             );
 
-	    dispatch(req_id, false, false);
+	    local_sched.dispatch();
             return make_ready_future<>();
 	} else {
-	    dispatch(req_id, false, false);
+	    local_sched.dispatch();
             return req_server.invoke_on(states->prev_cpuid, &req_service::run_callback, call_id, service, ret);
 	}
     }
