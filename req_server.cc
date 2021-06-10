@@ -203,47 +203,9 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
                                  .ToLocalChecked();
 
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
+	 auto cstr = "error\n";
+	 get_local_sched()->reply(req_id, call_id, service, to_sstring(cstr));
 
-    } else {
-    }
-}
-
-// Run JavaScript function
-void req_service::js_req(std::string req_id, sstring service, 
-		sstring function, std::string args, output_stream<char>& out) {
-
-    v8::Locker locker{isolate};              
-    Isolate::Scope isolate_scope(isolate);
-    HandleScope handle_scope(isolate);
-
-    // Switch to V8 context of this service
-    std::string serv(service.c_str());
-    Local<Context> context = Local<Context>::New(isolate, contexts[ctx_map[serv]]);
-    Context::Scope context_scope(context);
-    current_context = &context;
-
-    Local<Function> process_fun;
-    Local<String> process_name =
-        String::NewFromUtf8(isolate, function.c_str(), NewStringType::kNormal)
-            .ToLocalChecked();
-    Local<Value> process_val;
-    if (!context->Global()->Get(context, process_name).ToLocal(&process_val) ||
-        !process_val->IsFunction()) {
-         printf("get function %s fail\n", function.c_str());
-    }
-    process_fun = Local<Function>::Cast(process_val);
-    
-    Local<Value> result;
-
-    const int argc = 3;
-    Local<Value> argv[argc];
-    argv[0] = v8::String::NewFromUtf8(isolate, req_id.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
-    argv[1] = v8::String::NewFromUtf8(isolate, req_id.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
-    argv[2] = v8::String::NewFromUtf8(isolate, args.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
-
-    if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-         auto cstr = "error\n";
-         get_local_sched()->reply(req_id, req_id, service, to_sstring(cstr));
     } else {
     }
 }
@@ -404,10 +366,6 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::String::Utf8Value str3(args.GetIsolate(), args[5]);
     auto jsargs = std::string(*str3);
 
-    Local<String> tmp = String::NewFromUtf8(isolate, "ServiceName", NewStringType::kNormal)
-                                            .ToLocalChecked();
-    v8::String::Utf8Value str(isolate, context->Global()->Get(context, tmp).ToLocalChecked());
-    auto local_service = std::string(*str);
     auto states = new callback_states;
 
     auto gen = random_generator();
@@ -417,7 +375,7 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto key = service + callee + "cb";
     get_local_sched()->set_req_states(key, (void*)states);
 
-    get_local_sched()->schedule(req_id, caller, callee, local_service, service, function, jsargs);
+    get_local_sched()->schedule(req_id, callee, service, function, jsargs);
 }
 
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {

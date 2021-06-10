@@ -63,6 +63,7 @@ public:
    
     void dispatch(void) {
         auto workflow_states = wf_queue.top();
+	if (!workflow_states) return;
         cout << workflow_states->ts << endl;
 
         while (workflow_states->q.size()) {
@@ -107,8 +108,8 @@ public:
     void new_service(std::string service);
     void dispatch(std::string req_id, bool new_wf, bool complete_wf);
     future<> new_req(std::unique_ptr<httpd::request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
-    future<> run_func(size_t prev_cpu, std::string req_id, std::string call_id, std::string prev_service, std::string service, std::string function, std::string jsargs);
-    future<> schedule(std::string req_id, std::string caller, std::string callee, std::string prev_service, std::string service, std::string function, std::string jsargs);
+    future<> run_func(size_t prev_cpu, std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs);
+    future<> schedule(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs);
     future<> reply(std::string req_id, std::string call_id, std::string service, std::string ret);
 };
 

@@ -134,13 +134,9 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
     resp->_headers["Server"] = "Seastar httpd";
     resp->_headers["Date"] = http_date();
 
-    workflow_states->q.push(
-        make_task(default_scheduling_group(), [this, req_id, service, function, args, &out] () {
-            local_req_server().js_req(req_id, service, function, args, out);
-        })
-    );
-
     local_sched.new_wf(workflow_states);
+
+    schedule(req_id, req_id, service, function, args);
 
     return f.then([&out, resp = std::move(resp)] (auto&& res) {
 	resp->set_status(res._status, res._message);
@@ -165,13 +161,15 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
 }
 
 future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string call_id, 
-		std::string prev_service, std::string service, std::string function, std::string jsargs) {
+		std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
-    auto new_states = new reply_states;
-    new_states->local = false;
-    new_states->prev_cpuid = prev_cpu;
     auto key = service + call_id + "reply";
-    req_map[key] = (void*)new_states;
+    if (req_map.find(key) == req_map.end()) {
+        auto new_states = new reply_states;
+        new_states->local = false;
+        new_states->prev_cpuid = prev_cpu;
+        req_map[key] = (void*)new_states;
+    }
 
     auto workflow_states = (struct wf_states*)wf_map[req_id];
 
@@ -185,21 +183,21 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     return make_ready_future<>();
 }
 
-future<> scheduler::schedule(std::string req_id, std::string caller, std::string callee, 
-		std::string prev_service, std::string service, std::string function, std::string jsargs) {
+future<> scheduler::schedule(std::string req_id, std::string call_id, 
+		std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
     auto u = get_utilization();
     utilization[cpu] = u; 
     if (u < 90) {
-            return run_func(cpu, req_id, callee, prev_service, service, function, jsargs);
+            return run_func(cpu, req_id, call_id, service, function, jsargs);
     }
     else {
         size_t min = std::min_element(utilization.begin(), utilization.end()) - utilization.begin();
 	if (min != cpu && utilization[min] < 90)
 	    return sched_server.invoke_on(min , &scheduler::run_func, cpu, req_id,
-                                  callee, prev_service, service, function, jsargs);
+                                  call_id, service, function, jsargs);
 	else
-            return run_func(cpu, req_id, callee, prev_service, service, function, jsargs);
+            return run_func(cpu, req_id, call_id, service, function, jsargs);
     }
 }
 
