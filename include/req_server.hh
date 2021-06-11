@@ -57,19 +57,6 @@ private:
     // Semaphore to signal incoming requests to JS thread.
     semaphore sem{0};
 
-    // The stucture to store an incoming request.
-    struct rqst {
-        args_collection& args;
-        sstring key;
-        sstring val;
-        int tenant_id;
-        bool put;
-        rqst(args_collection& a)
-            :args(a)
-        {}
-        ~rqst(){}
-    };
-   
     MaybeLocal<String> read_file(Isolate* isolate, const string& name) {
         FILE* file = fopen(name.c_str(), "rb");
         if (file == NULL) return MaybeLocal<String>();
