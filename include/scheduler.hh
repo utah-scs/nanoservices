@@ -64,7 +64,6 @@ public:
     void dispatch(void) {
         auto workflow_states = wf_queue.top();
 	if (!workflow_states) return;
-        cout << workflow_states->ts << endl;
 
         while (workflow_states->q.size()) {
             engine().add_task(workflow_states->q.front());
