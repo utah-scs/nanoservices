@@ -45,6 +45,7 @@ void mongo_get(const v8::FunctionCallbackInfo<v8::Value>& args);
 using message = scattered_message<char>;
 class req_service {
 private:
+    bool big_core = false;
     // The tenant id tied to the currently running script.
     // The JavaScript context of the currently running script.
     Local<Context>* current_context;

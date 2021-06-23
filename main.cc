@@ -56,13 +56,13 @@ int main(int argc, char** argv) {
         engine().at_exit([&] { return sched_server.stop(); });
 
         return net_server.start().then([&] {
-	    for (int i = 0; i < std::min<unsigned int>(smp::count, 8); i++) {
+	    for (int i = 0; i < std::min<unsigned int>(smp::count, HW_Q_COUNT); i++) {
 	        net_server.invoke_on(i, &network_server::start);
 	    }
 	    return make_ready_future<>();
             //return net_server.invoke_on_all(&network_server::start);
         }).then([&] {
-	    return sched_server.start().then([&] {return sched_server.invoke_on(0, &scheduler::start);});
+	    return sched_server.start().then([&] {return sched_server.invoke_on_all(&scheduler::start);});
 	}).then([&] {
 	        return req_server.start().then([&] {
 		    return req_server.invoke_on_all(&req_service::start).then([&req_server] {

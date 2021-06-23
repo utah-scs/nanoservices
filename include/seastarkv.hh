@@ -30,6 +30,7 @@
 #include <vector>
 #include <seastar/core/app-template.hh>
 #include <seastar/core/reactor.hh>
+#include <seastar/core/smp.hh>
 #include <seastar/core/task.hh>
 #include <seastar/core/seastar.hh>
 #include <seastar/core/future-util.hh>
@@ -75,6 +76,7 @@
 
 // The number of services allowed.
 #define NUM_SERVICES 1024
+#define HW_Q_COUNT 8
 
 using namespace seastar;
 

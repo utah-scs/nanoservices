@@ -40,11 +40,19 @@ struct callback_states {
 };
 
 struct wf_states {
+    sstring name;
     uint64_t ts;
     std::queue<task*> q;
     wf_states() {
     }
     ~wf_states() {}
+};
+
+struct wf_info {
+    uint64_t exec_time;
+    wf_info() {
+    }
+    ~wf_info() {}
 };
 
 class cmp {
@@ -87,7 +95,9 @@ private:
     class local_scheduler local_sched;
     std::unordered_map<std::string, void*> req_map;
     std::unordered_map<std::string, void*> wf_map;
+    std::unordered_map<std::string, void*> wf_info_map;
     uint64_t count = 0;
+    bool big_core = false;
 
 public:
     void start();

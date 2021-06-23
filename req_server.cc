@@ -38,8 +38,12 @@ future<> req_service::start(void) {
         v8::ArrayBuffer::Allocator::NewDefaultAllocator();
     isolate = Isolate::New(create_params);
 
+    if (this_shard_id() >= HW_Q_COUNT)
+        big_core = true;
+
     return make_ready_future<>();
 }
+
 future<> req_service::stop() {
     return make_ready_future<>();
 }

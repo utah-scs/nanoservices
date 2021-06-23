@@ -18,7 +18,10 @@ std::vector<unsigned> utilization;
 distributed<scheduler> sched_server;
 
 void scheduler::start() {
-    utilization.resize(smp::count, 0);
+    if (this_shard_id() >= HW_Q_COUNT)
+        big_core = true;
+    if (this_shard_id() == 0)
+        utilization.resize(smp::count, 0);
 }
 
 void scheduler::new_service(std::string service) {
@@ -92,14 +95,15 @@ static double get_utilization(void) {
 
 future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req_id, 
 		sstring service, sstring function, std::string args, output_stream<char>& out) {
-    uint64_t ts = count++;
     auto key = service + req_id + "reply";
     auto new_states = new local_reply_states;
     new_states->local = true;
     auto f = new_states->res.get_future();
     req_map[key] = (void*)new_states;
 
+    uint64_t ts = count++;
     auto workflow_states = new wf_states;
+    workflow_states->name = service + function;
     workflow_states->ts = ts;
     wf_map[req_id] = (void*)workflow_states;
 
@@ -171,6 +175,14 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         req_map[key] = (void*)new_states;
     }
 
+    if (wf_map.find(req_id) == wf_map.end()) {
+        uint64_t ts = count++;
+        auto workflow_states = new wf_states;
+	workflow_states->name = service + function;
+        workflow_states->ts = ts;
+        wf_map[req_id] = (void*)workflow_states;
+        local_sched.new_wf(workflow_states);
+    }
     auto workflow_states = (struct wf_states*)wf_map[req_id];
 
     workflow_states->q.push(
@@ -188,7 +200,14 @@ future<> scheduler::schedule(std::string req_id, std::string call_id,
     auto cpu = engine().cpu_id();
     auto u = get_utilization();
     utilization[cpu] = u; 
-    if (u < 90) {
+
+    if (!big_core)
+        return sched_server.invoke_on(8 , &scheduler::run_func, cpu, req_id,
+                                  call_id, service, function, jsargs);
+    else 
+            return run_func(cpu, req_id, call_id, service, function, jsargs);
+
+    /*if (u < 90) {
             return run_func(cpu, req_id, call_id, service, function, jsargs);
     }
     else {
@@ -198,7 +217,7 @@ future<> scheduler::schedule(std::string req_id, std::string call_id,
                                   call_id, service, function, jsargs);
 	else
             return run_func(cpu, req_id, call_id, service, function, jsargs);
-    }
+    }*/
 }
 
 future<> scheduler::reply(std::string req_id, std::string call_id, std::string service, std::string ret) {
@@ -242,7 +261,8 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
             return make_ready_future<>();
 	} else {
 	    local_sched.dispatch();
-            return req_server.invoke_on(states->prev_cpuid, &req_service::run_callback, call_id, service, ret);
+	    delete_wf_states(req_id);
+            return sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
 	}
     }
 }
