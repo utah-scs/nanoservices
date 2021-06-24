@@ -379,7 +379,8 @@ void call_function(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto key = service + callee + "cb";
     get_local_sched()->set_req_states(key, (void*)states);
 
-    get_local_sched()->schedule(req_id, callee, service, function, jsargs);
+    auto cpu = engine().cpu_id();
+    get_local_sched()->schedule(cpu, req_id, callee, service, function, jsargs);
 }
 
 void new_database(const v8::FunctionCallbackInfo<v8::Value>& args) {

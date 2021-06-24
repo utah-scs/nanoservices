@@ -2,6 +2,7 @@
 #include "seastarkv.hh"
 #include "include/req_server.hh"
 #include <queue>
+#include <boost/thread/mutex.hpp>
 
 using namespace seastar;
 using namespace redis;
@@ -42,6 +43,7 @@ struct callback_states {
 struct wf_states {
     sstring name;
     uint64_t ts;
+    uint64_t start_time;
     std::queue<task*> q;
     wf_states() {
     }
@@ -49,10 +51,18 @@ struct wf_states {
 };
 
 struct wf_info {
-    uint64_t exec_time;
+    int64_t exec_time;
     wf_info() {
     }
     ~wf_info() {}
+};
+
+struct core_states {
+    boost::mutex mu;
+    uint64_t busy_till = 0;
+    core_states() {
+    }
+    ~core_states() {}
 };
 
 class cmp {
@@ -118,7 +128,7 @@ public:
     void dispatch(std::string req_id, bool new_wf, bool complete_wf);
     future<> new_req(std::unique_ptr<httpd::request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
     future<> run_func(size_t prev_cpu, std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs);
-    future<> schedule(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs);
+    future<> schedule(size_t prev_cpu, std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs);
     future<> reply(std::string req_id, std::string call_id, std::string service, std::string ret);
 };
 

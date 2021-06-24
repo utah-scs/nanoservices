@@ -9,19 +9,23 @@
 #include <seastar/core/metrics_types.hh>
 #include <seastar/core/metrics_api.hh>
 #include <seastar/core/scheduling.hh>
+#include <chrono>
 
 using namespace seastar;
+using namespace std::chrono;
 namespace pt = boost::property_tree;
 
 std::vector<unsigned> utilization;
+std::vector<core_states> cores[16];
 
 distributed<scheduler> sched_server;
 
 void scheduler::start() {
     if (this_shard_id() >= HW_Q_COUNT)
         big_core = true;
-    if (this_shard_id() == 0)
+    if (this_shard_id() == 0) {
         utilization.resize(smp::count, 0);
+    }
 }
 
 void scheduler::new_service(std::string service) {
@@ -101,12 +105,6 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
     auto f = new_states->res.get_future();
     req_map[key] = (void*)new_states;
 
-    uint64_t ts = count++;
-    auto workflow_states = new wf_states;
-    workflow_states->name = service + function;
-    workflow_states->ts = ts;
-    wf_map[req_id] = (void*)workflow_states;
-
     auto resp = std::make_shared<httpd::reply>();
     bool conn_keep_alive = false;
     bool conn_close = false;
@@ -138,9 +136,8 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
     resp->_headers["Server"] = "Seastar httpd";
     resp->_headers["Date"] = http_date();
 
-    local_sched.new_wf(workflow_states);
-
-    schedule(req_id, req_id, service, function, args);
+    auto cpu = engine().cpu_id();
+    schedule(cpu, req_id, req_id, service, function, args);
 
     return f.then([&out, resp = std::move(resp)] (auto&& res) {
 	resp->set_status(res._status, res._message);
@@ -175,14 +172,6 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         req_map[key] = (void*)new_states;
     }
 
-    if (wf_map.find(req_id) == wf_map.end()) {
-        uint64_t ts = count++;
-        auto workflow_states = new wf_states;
-	workflow_states->name = service + function;
-        workflow_states->ts = ts;
-        wf_map[req_id] = (void*)workflow_states;
-        local_sched.new_wf(workflow_states);
-    }
     auto workflow_states = (struct wf_states*)wf_map[req_id];
 
     workflow_states->q.push(
@@ -195,17 +184,34 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     return make_ready_future<>();
 }
 
-future<> scheduler::schedule(std::string req_id, std::string call_id, 
+future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string call_id, 
 		std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
     auto u = get_utilization();
     utilization[cpu] = u; 
 
-    if (!big_core)
-        return sched_server.invoke_on(8 , &scheduler::run_func, cpu, req_id,
-                                  call_id, service, function, jsargs);
-    else 
-            return run_func(cpu, req_id, call_id, service, function, jsargs);
+    if (wf_map.find(req_id) == wf_map.end()) {
+        uint64_t ts = count++;
+        auto workflow_states = new wf_states;
+        workflow_states->name = service + function;
+        workflow_states->ts = ts;
+	if (!big_core) {
+            auto now = high_resolution_clock::now();
+            workflow_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
+	}
+        wf_map[req_id] = (void*)workflow_states;
+        local_sched.new_wf(workflow_states);
+    }
+    auto workflow_states = (struct wf_states*)wf_map[req_id];
+
+    if (!big_core && wf_info_map.find(workflow_states->name) == wf_info_map.end()) {
+        auto workflow_info = new wf_info;
+        workflow_info->exec_time = -1;
+        wf_info_map[workflow_states->name] = (void*)workflow_info;
+	return sched_server.invoke_on(8, &scheduler::schedule, prev_cpu, req_id,
+                                      call_id, service, function, jsargs);
+    } else 
+        return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
 
     /*if (u < 90) {
             return run_func(cpu, req_id, call_id, service, function, jsargs);
@@ -240,13 +246,19 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	auto s = (struct local_reply_states*)states;
         s->res.set_value(rep);
 
+	auto workflow_states = (struct wf_states*)wf_map[req_id];
+	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
+
+	if (workflow_info->exec_time == -1) {
+	    auto now = high_resolution_clock::now();
+            workflow_info->exec_time = duration_cast<milliseconds>(now.time_since_epoch()).count()
+	                                  - workflow_states->start_time;
+	    cout << workflow_info->exec_time << endl;
+	}
+
 	delete_wf_states(req_id);
 
 	return make_ready_future<>();
-        //return states->out->write(std::move(reply_builder::build_direct(msg_ok, msg_ok.size())))
-	//    .then([&states] () {
-        //        free(states);
-	//    });
     } else {
         if (states->prev_cpuid == cpu) {
 	    auto workflow_states = (struct wf_states*)wf_map[req_id];
