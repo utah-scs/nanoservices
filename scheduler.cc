@@ -16,7 +16,32 @@ using namespace std::chrono;
 namespace pt = boost::property_tree;
 
 std::vector<unsigned> utilization;
-std::vector<core_states> cores[16];
+std::vector<core_states> cores;
+
+void scheduler::dispatch(void) {
+    auto i = this_shard_id();
+    if (big_core) {
+        cores[i].mu->lock();
+	if (!wf_queue.size()) {
+	    cores[i].busy = false;
+	    auto now = high_resolution_clock::now();
+            uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+	    cores[i].busy_till = current;
+	}
+        cores[i].mu->unlock();
+    }
+
+    if (!wf_queue.size()) {
+	return;
+    }
+
+    auto workflow_states = wf_queue.top();
+
+    while (workflow_states->q.size()) {
+        engine().add_task(workflow_states->q.front());
+        workflow_states->q.pop();
+    }
+};
 
 distributed<scheduler> sched_server;
 
@@ -25,6 +50,7 @@ void scheduler::start() {
         big_core = true;
     if (this_shard_id() == 0) {
         utilization.resize(smp::count, 0);
+        cores.resize(smp::count, core_states());
     }
 }
 
@@ -180,8 +206,32 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         })
     );
 
-    local_sched.dispatch();
+    dispatch();
     return make_ready_future<>();
+}
+
+size_t get_big_core(int64_t exec_time) {
+   while (true) {
+        for (int i = HW_Q_COUNT; i < smp::count; i++) {
+	    if (!cores[i].mu->try_lock())
+                continue;
+	    else {
+		auto now = high_resolution_clock::now();
+		uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+		if (!cores[i].busy || cores[i].busy_till - current < 5) {
+		    cores[i].busy = true;
+		    if (exec_time == -1)
+		        cores[i].busy_till = INT_MAX;
+		    else
+		        cores[i].busy_till = max(cores[i].busy_till, current) + exec_time;
+		    cores[i].mu->unlock();
+		    return i;
+		} else {
+		    cores[i].mu->unlock();
+		}
+	    }
+	}
+   }
 }
 
 future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string call_id, 
@@ -200,7 +250,7 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
             workflow_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
 	}
         wf_map[req_id] = (void*)workflow_states;
-        local_sched.new_wf(workflow_states);
+        new_wf(workflow_states);
     }
     auto workflow_states = (struct wf_states*)wf_map[req_id];
 
@@ -208,8 +258,19 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
         auto workflow_info = new wf_info;
         workflow_info->exec_time = -1;
         wf_info_map[workflow_states->name] = (void*)workflow_info;
-	return sched_server.invoke_on(8, &scheduler::schedule, prev_cpu, req_id,
+
+	auto core = get_big_core(workflow_info->exec_time);
+	
+	return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
+    } else if (!big_core) {
+	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
+        if (workflow_info->exec_time > 100) {
+	    auto core = get_big_core(workflow_info->exec_time);
+	    return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
+                                      call_id, service, function, jsargs);
+	} else
+            return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
     } else 
         return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
 
@@ -269,10 +330,10 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
                 }))
             );
 
-	    local_sched.dispatch();
+	    dispatch();
             return make_ready_future<>();
 	} else {
-	    local_sched.dispatch();
+	    dispatch();
 	    delete_wf_states(req_id);
             return sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
 	}

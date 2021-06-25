@@ -3,6 +3,7 @@
 #include "include/req_server.hh"
 #include <queue>
 #include <boost/thread/mutex.hpp>
+#include <boost/make_shared.hpp>
 
 using namespace seastar;
 using namespace redis;
@@ -12,6 +13,7 @@ extern distributed<scheduler> sched_server;
 inline distributed<scheduler>& get_sched_server() {
     return sched_server;
 }
+
 inline scheduler* get_local_sched() {
     return &sched_server.local();
 }
@@ -58,11 +60,14 @@ struct wf_info {
 };
 
 struct core_states {
-    boost::mutex mu;
+    boost::shared_ptr<boost::mutex> mu;
+    bool busy = false;
     uint64_t busy_till = 0;
     core_states() {
+        mu = boost::make_shared<boost::mutex>();
     }
-    ~core_states() {}
+    ~core_states() {
+    }
 };
 
 class cmp {
@@ -72,37 +77,9 @@ public:
     }
 };
 
-class local_scheduler {
-private:
-    std::priority_queue<struct wf_states*, std::vector<struct wf_states*>, cmp> wf_queue;
-
-public:
-    local_scheduler() {};
-   
-    void dispatch(void) {
-        auto workflow_states = wf_queue.top();
-	if (!workflow_states) return;
-
-        while (workflow_states->q.size()) {
-            engine().add_task(workflow_states->q.front());
-            workflow_states->q.pop();
-        }
-    };
-
-     void new_wf(struct wf_states* workflow_states) {
-        wf_queue.push(workflow_states);
-        dispatch();
-    };
- 
-    void complete_wf(std::string req_id) {
-        wf_queue.pop();
-        dispatch();
-    };
-};
-
 class scheduler {
 private:
-    class local_scheduler local_sched;
+    std::priority_queue<struct wf_states*, std::vector<struct wf_states*>, cmp> wf_queue;
     std::unordered_map<std::string, void*> req_map;
     std::unordered_map<std::string, void*> wf_map;
     std::unordered_map<std::string, void*> wf_info_map;
@@ -110,6 +87,20 @@ private:
     bool big_core = false;
 
 public:
+    void dispatch(void);
+
+    void new_wf(struct wf_states* workflow_states) {
+        wf_queue.push(workflow_states);
+        dispatch();
+    };
+ 
+    void complete_wf(std::string req_id) {
+	auto p = wf_queue.top();
+	delete p;
+        wf_queue.pop();
+        dispatch();
+    };
+
     void start();
     void* get_req_states(std::string key);
     void set_req_states(std::string key, void* states);
@@ -117,7 +108,7 @@ public:
     void set_wf_states(std::string key, void* states);
     void delete_wf_states(std::string req_id) {
 	wf_map.erase(req_id);
-	local_sched.complete_wf(req_id);
+	complete_wf(req_id);
     };
 
     future<> stop() {
