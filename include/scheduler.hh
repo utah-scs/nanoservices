@@ -70,16 +70,15 @@ struct core_states {
     }
 };
 
-class cmp {
-public:
-    bool operator() (struct wf_states* &left, struct wf_states* &right) { 
+struct cmp {
+    bool operator() (struct wf_states* left, struct wf_states* right) const { 
         return (left->ts) > (right->ts);
     }
 };
 
 class scheduler {
 private:
-    std::priority_queue<struct wf_states*, std::vector<struct wf_states*>, cmp> wf_queue;
+    std::set<struct wf_states*, cmp> wf_queue;
     std::unordered_map<std::string, void*> req_map;
     std::unordered_map<std::string, void*> wf_map;
     std::unordered_map<std::string, void*> wf_info_map;
@@ -90,14 +89,12 @@ public:
     void dispatch(void);
 
     void new_wf(struct wf_states* workflow_states) {
-        wf_queue.push(workflow_states);
+        wf_queue.insert(workflow_states);
         dispatch();
     };
  
-    void complete_wf(std::string req_id) {
-	auto p = wf_queue.top();
-	delete p;
-        wf_queue.pop();
+    void complete_wf(struct wf_states* workflow_states) {
+        wf_queue.erase(workflow_states);
         dispatch();
     };
 
@@ -107,8 +104,10 @@ public:
     void* get_wf_states(std::string key);
     void set_wf_states(std::string key, void* states);
     void delete_wf_states(std::string req_id) {
+	auto wf = (wf_states*)wf_map[req_id];
+	complete_wf(wf);
 	wf_map.erase(req_id);
-	complete_wf(req_id);
+	delete wf;
     };
 
     future<> stop() {
@@ -116,7 +115,6 @@ public:
     }
     scheduler() {};
     void new_service(std::string service);
-    void dispatch(std::string req_id, bool new_wf, bool complete_wf);
     future<> new_req(std::unique_ptr<httpd::request> req, std::string req_id, sstring service, sstring function, std::string args, output_stream<char>& out);
     future<> run_func(size_t prev_cpu, std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs);
     future<> schedule(size_t prev_cpu, std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs);

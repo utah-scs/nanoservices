@@ -35,7 +35,7 @@ void scheduler::dispatch(void) {
 	return;
     }
 
-    auto workflow_states = wf_queue.top();
+    auto workflow_states = *wf_queue.begin();
 
     while (workflow_states->q.size()) {
         engine().add_task(workflow_states->q.front());
@@ -191,6 +191,7 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 		std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
     auto key = service + call_id + "reply";
+
     if (req_map.find(key) == req_map.end()) {
         auto new_states = new reply_states;
         new_states->local = false;
@@ -211,6 +212,8 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 }
 
 size_t get_big_core(int64_t exec_time) {
+   if (smp::count <= HW_Q_COUNT)
+	   return this_shard_id();
    while (true) {
         for (int i = HW_Q_COUNT; i < smp::count; i++) {
 	    if (!cores[i].mu->try_lock())
@@ -260,6 +263,8 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
         wf_info_map[workflow_states->name] = (void*)workflow_info;
 
 	auto core = get_big_core(workflow_info->exec_time);
+	if (core != this_shard_id())
+	    complete_wf(workflow_states);
 	
 	return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
@@ -267,6 +272,9 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
         if (workflow_info->exec_time > 100) {
 	    auto core = get_big_core(workflow_info->exec_time);
+	    if (core != this_shard_id())
+                complete_wf(workflow_states);
+
 	    return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
 	} else
@@ -314,7 +322,6 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	    auto now = high_resolution_clock::now();
             workflow_info->exec_time = duration_cast<milliseconds>(now.time_since_epoch()).count()
 	                                  - workflow_states->start_time;
-	    cout << workflow_info->exec_time << endl;
 	}
 
 	delete_wf_states(req_id);
