@@ -165,7 +165,7 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
     auto cpu = engine().cpu_id();
     schedule(cpu, req_id, req_id, service, function, args);
 
-    return f.then([&out, resp = std::move(resp)] (auto&& res) {
+    return f.then([this, &out, resp = std::move(resp), req_id] (auto&& res) {
 	resp->set_status(res._status, res._message);
 	resp->done();
 	resp->_response_line = resp->response_line();
@@ -181,8 +181,9 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
         }).then([&out, resp = std::move(resp)] {
             return out.write(resp->_content.data(),
                 resp->_content.size());
-        }).then([&out] {
-            return out.flush();
+        }).then([this, &out, req_id] {
+            out.flush();
+	    delete_wf_states(req_id);
         });
     });
 }
@@ -323,8 +324,6 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
             workflow_info->exec_time = duration_cast<milliseconds>(now.time_since_epoch()).count()
 	                                  - workflow_states->start_time;
 	}
-
-	delete_wf_states(req_id);
 
 	return make_ready_future<>();
     } else {

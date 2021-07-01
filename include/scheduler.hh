@@ -72,7 +72,7 @@ struct core_states {
 
 struct cmp {
     bool operator() (struct wf_states* left, struct wf_states* right) const { 
-        return (left->ts) > (right->ts);
+        return (left->ts) < (right->ts);
     }
 };
 
@@ -95,7 +95,7 @@ public:
  
     void complete_wf(struct wf_states* workflow_states) {
         wf_queue.erase(workflow_states);
-        dispatch();
+	dispatch();
     };
 
     void start();
