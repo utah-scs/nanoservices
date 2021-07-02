@@ -271,7 +271,7 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
                                       call_id, service, function, jsargs);
     } else if (!big_core) {
 	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
-        if (workflow_info->exec_time > 100) {
+        if (workflow_info->exec_time > 50) {
 	    auto core = get_big_core(workflow_info->exec_time);
 	    if (core != this_shard_id())
                 complete_wf(workflow_states);
