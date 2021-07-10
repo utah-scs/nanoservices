@@ -18,7 +18,7 @@ namespace pt = boost::property_tree;
 std::vector<unsigned> utilization;
 std::vector<core_states> cores;
 
-void scheduler::dispatch(void) {
+void scheduler::dispatch(bool next_wf) {
     auto i = this_shard_id();
     if (big_core) {
         cores[i].mu->lock();
@@ -26,6 +26,7 @@ void scheduler::dispatch(void) {
 	    cores[i].busy = false;
 	    auto now = high_resolution_clock::now();
             uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+
 	    cores[i].busy_till = current;
 	}
         cores[i].mu->unlock();
@@ -36,6 +37,18 @@ void scheduler::dispatch(void) {
     }
 
     auto workflow_states = *wf_queue.begin();
+    if (next_wf) {
+        cores[i].mu->lock();
+	cores[i].busy = true;
+	auto now = high_resolution_clock::now();
+        uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+
+	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
+
+	if (workflow_info)
+	    cores[i].busy_till = current + workflow_info->exec_time;
+        cores[i].mu->unlock();
+    }
 
     while (workflow_states->q.size()) {
         engine().add_task(workflow_states->q.front());
@@ -208,21 +221,23 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         })
     );
 
-    dispatch();
+    dispatch(false);
     return make_ready_future<>();
 }
 
 size_t get_big_core(int64_t exec_time) {
    if (smp::count <= HW_Q_COUNT)
-	   return this_shard_id();
-   while (true) {
+       return this_shard_id();
+//   while (true) {
         for (int i = HW_Q_COUNT; i < smp::count; i++) {
 	    if (!cores[i].mu->try_lock())
                 continue;
 	    else {
 		auto now = high_resolution_clock::now();
 		uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
-		if (!cores[i].busy || cores[i].busy_till - current < 5) {
+		//if (!cores[i].busy || cores[i].busy_till - current < 10)  {
+		if (!cores[i].busy)  {
+		//if (!cores[i].busy || utilization[i] < 80)  {
 		    cores[i].busy = true;
 		    if (exec_time == -1)
 		        cores[i].busy_till = INT_MAX;
@@ -235,7 +250,8 @@ size_t get_big_core(int64_t exec_time) {
 		}
 	    }
 	}
-   }
+//   }
+    return this_shard_id();
 }
 
 future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string call_id, 
@@ -264,20 +280,26 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
         wf_info_map[workflow_states->name] = (void*)workflow_info;
 
 	auto core = get_big_core(workflow_info->exec_time);
-	if (core != this_shard_id())
+	if (core != this_shard_id()) {
 	    complete_wf(workflow_states);
 	
-	return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
+	    return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
+	} else
+            return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
+
     } else if (!big_core) {
 	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
         if (workflow_info->exec_time > 50) {
 	    auto core = get_big_core(workflow_info->exec_time);
-	    if (core != this_shard_id())
+	    if (core != this_shard_id()) {
                 complete_wf(workflow_states);
 
-	    return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
+	        return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
+	    } else
+                return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
+
 	} else
             return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
     } else 
@@ -336,10 +358,10 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
                 }))
             );
 
-	    dispatch();
+	    dispatch(false);
             return make_ready_future<>();
 	} else {
-	    dispatch();
+	    dispatch(false);
 	    delete_wf_states(req_id);
             return sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
 	}

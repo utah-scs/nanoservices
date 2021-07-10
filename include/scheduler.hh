@@ -86,16 +86,16 @@ private:
     bool big_core = false;
 
 public:
-    void dispatch(void);
+    void dispatch(bool next_wf);
 
     void new_wf(struct wf_states* workflow_states) {
         wf_queue.insert(workflow_states);
-        dispatch();
+        dispatch(false);
     };
  
     void complete_wf(struct wf_states* workflow_states) {
         wf_queue.erase(workflow_states);
-	dispatch();
+	dispatch(true);
     };
 
     void start();
