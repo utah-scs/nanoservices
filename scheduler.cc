@@ -36,20 +36,21 @@ void scheduler::dispatch(bool next_wf) {
 	return;
     }
 
-    auto workflow_states = *wf_queue.begin();
-    if (next_wf) {
+    if (big_core) {
         cores[i].mu->lock();
-	cores[i].busy = true;
-	auto now = high_resolution_clock::now();
-        uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+	for (auto wf : wf_queue) {
+	    auto now = high_resolution_clock::now();
+            uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
 
-	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
+	    auto workflow_info = (struct wf_info*)wf_info_map[wf->name];
 
-	if (workflow_info)
-	    cores[i].busy_till = current + workflow_info->exec_time;
+	    if (workflow_info)
+	        cores[i].busy_till = max(cores[i].busy_till, current) + workflow_info->exec_time;
+	}
         cores[i].mu->unlock();
     }
 
+    auto workflow_states = *wf_queue.begin();
     while (workflow_states->q.size()) {
         engine().add_task(workflow_states->q.front());
         workflow_states->q.pop();
@@ -124,14 +125,15 @@ static double get_utilization(void) {
     auto all_metrics = smi::get_values();
     auto& values = all_metrics->values;
     const auto& all_metadata = *all_metrics->metadata;
-    int i = 33;
-    auto mt = all_metadata[i].metrics.begin();
-    for (auto v : values[i]) {
-        if (mt->id.full_name() == "reactor_utilization") {
-            double tmpd = v.d();
-            return tmpd;
+    for (int i = 0; i < all_metadata.size(); i++) {
+        auto mt = all_metadata[i].metrics.begin();
+        for (auto v : values[i]) {
+            if (mt->id.full_name() == "reactor_utilization") {
+                double tmpd = v.d();
+                return tmpd;
+            }
+            mt++;
         }
-        mt++;
     }
     return 0;
 }
@@ -228,28 +230,58 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 size_t get_big_core(int64_t exec_time) {
    if (smp::count <= HW_Q_COUNT)
        return this_shard_id();
+
 //   while (true) {
+    if(this_shard_id() % 2) {
         for (int i = HW_Q_COUNT; i < smp::count; i++) {
 	    if (!cores[i].mu->try_lock())
                 continue;
 	    else {
 		auto now = high_resolution_clock::now();
 		uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
-		//if (!cores[i].busy || cores[i].busy_till - current < 10)  {
+		//if (!cores[i].busy || cores[i].busy_till < current || (cores[i].busy_till - current) < 5)  {
 		if (!cores[i].busy)  {
-		//if (!cores[i].busy || utilization[i] < 80)  {
+		//if ((!cores[i].busy && utilization[i] < 70) || utilization[i] < 50)  {
+		//if (!cores[i].busy && utilization[i] < 70)  {
 		    cores[i].busy = true;
 		    if (exec_time == -1)
 		        cores[i].busy_till = INT_MAX;
 		    else
-		        cores[i].busy_till = max(cores[i].busy_till, current) + exec_time;
+		        cores[i].busy_till = std::max(cores[i].busy_till, current) + exec_time;
 		    cores[i].mu->unlock();
+		    
 		    return i;
 		} else {
 		    cores[i].mu->unlock();
 		}
 	    }
 	}
+    } else {
+        for (int i = smp::count - 1; i >= HW_Q_COUNT; i--) {
+	    if (!cores[i].mu->try_lock())
+                continue;
+	    else {
+		auto now = high_resolution_clock::now();
+		uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+		//if (!cores[i].busy || cores[i].busy_till < current || (cores[i].busy_till - current) < 5)  {
+		if (!cores[i].busy)  {
+		//if ((!cores[i].busy && utilization[i] < 70) || utilization[i] < 50)  {
+		//if (!cores[i].busy && utilization[i] < 70)  {
+		    cores[i].busy = true;
+		    if (exec_time == -1)
+		        cores[i].busy_till = INT_MAX;
+		    else
+		        cores[i].busy_till = std::max(cores[i].busy_till, current) + exec_time;
+		    cores[i].mu->unlock();
+		    
+		    return i;
+		} else {
+		    cores[i].mu->unlock();
+		}
+	    }
+	}
+     }
+
 //   }
     return this_shard_id();
 }
@@ -259,6 +291,8 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
     auto cpu = engine().cpu_id();
     auto u = get_utilization();
     utilization[cpu] = u; 
+
+		    cout << utilization << endl;
 
     if (wf_map.find(req_id) == wf_map.end()) {
         uint64_t ts = count++;
@@ -290,7 +324,9 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 
     } else if (!big_core) {
 	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
-        if (workflow_info->exec_time > 50) {
+	//cout << utilization[cpu] << endl;
+        //if (workflow_info->exec_time > 50 || utilization[cpu] > 30) {
+        if (workflow_info->exec_time > 50 ) {
 	    auto core = get_big_core(workflow_info->exec_time);
 	    if (core != this_shard_id()) {
                 complete_wf(workflow_states);
