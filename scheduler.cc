@@ -11,6 +11,8 @@
 #include <seastar/core/scheduling.hh>
 #include <chrono>
 
+#define LONG_WF 50
+
 using namespace seastar;
 using namespace std::chrono;
 namespace pt = boost::property_tree;
@@ -34,20 +36,6 @@ void scheduler::dispatch(bool next_wf) {
 
     if (!wf_queue.size()) {
 	return;
-    }
-
-    if (big_core) {
-        cores[i].mu->lock();
-	for (auto wf : wf_queue) {
-	    auto now = high_resolution_clock::now();
-            uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
-
-	    auto workflow_info = (struct wf_info*)wf_info_map[wf->name];
-
-	    if (workflow_info)
-	        cores[i].busy_till = max(cores[i].busy_till, current) + workflow_info->exec_time;
-	}
-        cores[i].mu->unlock();
     }
 
     auto workflow_states = *wf_queue.begin();
@@ -231,7 +219,7 @@ size_t get_big_core(int64_t exec_time) {
    if (smp::count <= HW_Q_COUNT)
        return this_shard_id();
 
-//   while (true) {
+   while (true) {
     if(this_shard_id() % 2) {
         for (int i = HW_Q_COUNT; i < smp::count; i++) {
 	    if (!cores[i].mu->try_lock())
@@ -282,7 +270,13 @@ size_t get_big_core(int64_t exec_time) {
 	}
      }
 
-//   }
+     if (exec_time < LONG_WF)
+         break;
+     /*else {
+         int i = (rand() % (smp::count - HW_Q_COUNT) + HW_Q_COUNT);
+	 return i;
+     }*/
+   }
     return this_shard_id();
 }
 
@@ -325,8 +319,8 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
     } else if (!big_core) {
 	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
 	//cout << utilization[cpu] << endl;
-        //if (workflow_info->exec_time > 50 || utilization[cpu] > 30) {
-        if (workflow_info->exec_time > 50 ) {
+        if (workflow_info->exec_time > LONG_WF || utilization[cpu] >= 0) {
+        //if (workflow_info->exec_time >= LONG_WF ) {
 	    auto core = get_big_core(workflow_info->exec_time);
 	    if (core != this_shard_id()) {
                 complete_wf(workflow_states);
@@ -397,9 +391,9 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	    dispatch(false);
             return make_ready_future<>();
 	} else {
-	    dispatch(false);
 	    delete_wf_states(req_id);
-            return sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
+            sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
+            return make_ready_future<>();
 	}
     }
 }
