@@ -302,50 +302,26 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
     }
     auto workflow_states = (struct wf_states*)wf_map[req_id];
 
-    if (!big_core && wf_info_map.find(workflow_states->name) == wf_info_map.end()) {
+    if (wf_info_map.find(workflow_states->name) == wf_info_map.end()) {
         auto workflow_info = new wf_info;
         workflow_info->exec_time = -1;
         wf_info_map[workflow_states->name] = (void*)workflow_info;
+    }
 
-	auto core = get_big_core(workflow_info->exec_time);
-	if (core != this_shard_id()) {
-	    complete_wf(workflow_states);
-	
-	    return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
-                                      call_id, service, function, jsargs);
-	} else
-            return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
 
-    } else if (!big_core) {
-	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
-	//cout << utilization[cpu] << endl;
-        if (workflow_info->exec_time > LONG_WF || utilization[cpu] >= 0) {
-        //if (workflow_info->exec_time >= LONG_WF ) {
-	    auto core = get_big_core(workflow_info->exec_time);
-	    if (core != this_shard_id()) {
-                complete_wf(workflow_states);
-
-	        return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
-                                      call_id, service, function, jsargs);
-	    } else
-                return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
-
-	} else
-            return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
-    } else 
+    if (u < 90) {
         return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
-
-    /*if (u < 90) {
-            return run_func(cpu, req_id, call_id, service, function, jsargs);
     }
     else {
         size_t min = std::min_element(utilization.begin(), utilization.end()) - utilization.begin();
-	if (min != cpu && utilization[min] < 90)
-	    return sched_server.invoke_on(min , &scheduler::run_func, cpu, req_id,
-                                  call_id, service, function, jsargs);
+	if (min != cpu ) {
+                complete_wf(workflow_states);
+		return sched_server.invoke_on(min, &scheduler::schedule, prev_cpu, req_id,
+                                      call_id, service, function, jsargs);
+	}
 	else
-            return run_func(cpu, req_id, call_id, service, function, jsargs);
-    }*/
+            return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
+    }
 }
 
 future<> scheduler::reply(std::string req_id, std::string call_id, std::string service, std::string ret) {
