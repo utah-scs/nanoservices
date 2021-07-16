@@ -39,6 +39,7 @@ void scheduler::dispatch(bool next_wf) {
     }
 
     auto workflow_states = *wf_queue.begin();
+
     while (workflow_states->q.size()) {
         engine().add_task(workflow_states->q.front());
         workflow_states->q.pop();
@@ -203,7 +204,26 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         req_map[key] = (void*)new_states;
     }
 
+    if (wf_map.find(req_id) == wf_map.end()) {
+        uint64_t ts = count++;
+        auto workflow_states = new wf_states;
+        workflow_states->name = service + function;
+        workflow_states->ts = ts;
+	if (!big_core) {
+            auto now = high_resolution_clock::now();
+            workflow_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
+	}
+        wf_map[req_id] = (void*)workflow_states;
+        new_wf(workflow_states);
+    }
+
     auto workflow_states = (struct wf_states*)wf_map[req_id];
+
+    if (wf_info_map.find(workflow_states->name) == wf_info_map.end()) {
+        auto workflow_info = new wf_info;
+        workflow_info->exec_time = -1;
+        wf_info_map[workflow_states->name] = (void*)workflow_info;
+    }
 
     workflow_states->q.push(
         make_task(default_scheduling_group(), [this, req_id, call_id, service, function, jsargs] () {
@@ -276,6 +296,8 @@ size_t get_big_core(int64_t exec_time) {
          int i = (rand() % (smp::count - HW_Q_COUNT) + HW_Q_COUNT);
 	 return i;
      }*/
+     //if (this_shard_id() >= HW_Q_COUNT)
+//	     break;
    }
     return this_shard_id();
 }
@@ -286,7 +308,16 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
     auto u = get_utilization();
     utilization[cpu] = u; 
 
-		    cout << utilization << endl;
+    cout << utilization << endl;
+
+    auto key = service + call_id + "reply";
+
+    if (req_map.find(key) == req_map.end()) {
+        auto new_states = new reply_states;
+        new_states->local = false;
+        new_states->prev_cpuid = prev_cpu;
+        req_map[key] = (void*)new_states;
+    }
 
     if (wf_map.find(req_id) == wf_map.end()) {
         uint64_t ts = count++;
@@ -302,38 +333,40 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
     }
     auto workflow_states = (struct wf_states*)wf_map[req_id];
 
-    if (!big_core && wf_info_map.find(workflow_states->name) == wf_info_map.end()) {
+    if (wf_info_map.find(workflow_states->name) == wf_info_map.end()) {
         auto workflow_info = new wf_info;
         workflow_info->exec_time = -1;
         wf_info_map[workflow_states->name] = (void*)workflow_info;
 
 	auto core = get_big_core(workflow_info->exec_time);
 	if (core != this_shard_id()) {
-	    complete_wf(workflow_states);
+	    if (req_id == call_id)
+	        complete_wf(workflow_states);
 	
-	    return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
+	    return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
 	} else
             return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
 
-    } else if (!big_core) {
+    } else {
 	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
 	//cout << utilization[cpu] << endl;
-        if (workflow_info->exec_time > LONG_WF || utilization[cpu] >= 0) {
+        //if (workflow_info->exec_time > LONG_WF || utilization[cpu] >= 0) {
         //if (workflow_info->exec_time >= LONG_WF ) {
 	    auto core = get_big_core(workflow_info->exec_time);
 	    if (core != this_shard_id()) {
-                complete_wf(workflow_states);
+	        if (req_id == call_id)
+                    complete_wf(workflow_states);
 
-	        return sched_server.invoke_on(core, &scheduler::schedule, prev_cpu, req_id,
+	        return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
 	    } else
                 return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
 
-	} else
-            return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
-    } else 
-        return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
+//	} else
+           // return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
+    } //else 
+   //     return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
 
     /*if (u < 90) {
             return run_func(cpu, req_id, call_id, service, function, jsargs);
