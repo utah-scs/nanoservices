@@ -42,21 +42,12 @@ struct callback_states {
     ~callback_states() {}
 };
 
-struct wf_states {
-    sstring name;
-    uint64_t ts;
+struct func_states {
     uint64_t start_time;
-    std::queue<task*> q;
-    wf_states() {
-    }
-    ~wf_states() {}
-};
-
-struct wf_info {
     int64_t exec_time;
-    wf_info() {
+    func_states() {
     }
-    ~wf_info() {}
+    ~func_states() {}
 };
 
 struct core_states {
@@ -70,45 +61,29 @@ struct core_states {
     }
 };
 
-struct cmp {
+/*struct cmp {
     bool operator() (struct wf_states* left, struct wf_states* right) const { 
         return (left->ts) < (right->ts);
     }
 };
-
+*/
 class scheduler {
 private:
-    std::set<struct wf_states*, cmp> wf_queue;
     std::unordered_map<std::string, void*> req_map;
-    std::unordered_map<std::string, void*> wf_map;
-    std::unordered_map<std::string, void*> wf_info_map;
+    std::unordered_map<std::string, void*> func_map;
+    std::unordered_map<std::string, string> func_name_map;
+    //std::set<struct wf_states*, cmp> wf_queue;
     uint64_t count = 0;
     bool big_core = false;
 
 public:
     void dispatch(bool next_wf);
 
-    void new_wf(struct wf_states* workflow_states) {
-        wf_queue.insert(workflow_states);
-        dispatch(false);
-    };
- 
-    void complete_wf(struct wf_states* workflow_states) {
-        wf_queue.erase(workflow_states);
-	dispatch(true);
-    };
-
     void start();
     void* get_req_states(std::string key);
     void set_req_states(std::string key, void* states);
     void* get_wf_states(std::string key);
     void set_wf_states(std::string key, void* states);
-    void delete_wf_states(std::string req_id) {
-	auto wf = (wf_states*)wf_map[req_id];
-	complete_wf(wf);
-	wf_map.erase(req_id);
-	delete wf;
-    };
 
     future<> stop() {
       return make_ready_future<>();

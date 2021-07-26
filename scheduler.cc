@@ -21,7 +21,7 @@ std::vector<unsigned> utilization;
 std::vector<core_states> cores;
 
 void scheduler::dispatch(bool next_wf) {
-    auto i = this_shard_id();
+/*    auto i = this_shard_id();
     if (big_core) {
         cores[i].mu->lock();
 	if (!wf_queue.size()) {
@@ -43,7 +43,7 @@ void scheduler::dispatch(bool next_wf) {
     while (workflow_states->q.size()) {
         engine().add_task(workflow_states->q.front());
         workflow_states->q.pop();
-    }
+    }*/
 };
 
 distributed<scheduler> sched_server;
@@ -64,16 +64,8 @@ void* scheduler::get_req_states(std::string key) {
     return req_map[key];
 }
 
-void* scheduler::get_wf_states(std::string key) {
-    return wf_map[key];
-}
-
 void scheduler::set_req_states(std::string key, void* states) {
     req_map[key] = states;
-}
-
-void scheduler::set_wf_states(std::string key, void* states) {
-    wf_map[key] = states;
 }
 
 // Write the current date in the specific "preferred format" defined in
@@ -187,7 +179,6 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
                 resp->_content.size());
         }).then([this, &out, req_id] {
             out.flush();
-	    delete_wf_states(req_id);
         });
     });
 }
@@ -204,34 +195,28 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         req_map[key] = (void*)new_states;
     }
 
-    if (wf_map.find(req_id) == wf_map.end()) {
-        uint64_t ts = count++;
-        auto workflow_states = new wf_states;
-        workflow_states->name = service + function;
-        workflow_states->ts = ts;
-	if (!big_core) {
-            auto now = high_resolution_clock::now();
-            workflow_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
-	}
-        wf_map[req_id] = (void*)workflow_states;
-        new_wf(workflow_states);
+    auto func = service + function;
+
+    if (func_map.find(func) == func_map.end()) {
+        auto function_states = new func_states;
+        auto now = high_resolution_clock::now();
+        function_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
+        function_states->exec_time = -1;
+        func_map[func] = (void*)function_states;
     }
 
-    auto workflow_states = (struct wf_states*)wf_map[req_id];
+    func_name_map[call_id] = func;
 
-    if (wf_info_map.find(workflow_states->name) == wf_info_map.end()) {
-        auto workflow_info = new wf_info;
-        workflow_info->exec_time = -1;
-        wf_info_map[workflow_states->name] = (void*)workflow_info;
-    }
+    auto function_states = (struct func_states*)func_map[func];
 
-    workflow_states->q.push(
+//    workflow_states->q.push(
+    engine().add_task(
         make_task(default_scheduling_group(), [this, req_id, call_id, service, function, jsargs] () {
             local_req_server().run_func(req_id, call_id, service, function, jsargs);
         })
     );
 
-    dispatch(false);
+//    dispatch(false);
     return make_ready_future<>();
 }
 
@@ -258,6 +243,7 @@ size_t get_big_core(int64_t exec_time) {
 		        cores[i].busy_till = std::max(cores[i].busy_till, current) + exec_time;
 		    cores[i].mu->unlock();
 		    
+	    cout << "core " << i << endl;
 		    return i;
 		} else {
 		    cores[i].mu->unlock();
@@ -281,6 +267,7 @@ size_t get_big_core(int64_t exec_time) {
 		    else
 		        cores[i].busy_till = std::max(cores[i].busy_till, current) + exec_time;
 		    cores[i].mu->unlock();
+	    cout << "core " << i << endl;
 		    
 		    return i;
 		} else {
@@ -299,6 +286,7 @@ size_t get_big_core(int64_t exec_time) {
      //if (this_shard_id() >= HW_Q_COUNT)
 //	     break;
    }
+	    cout << "local core" << endl;
     return this_shard_id();
 }
 
@@ -319,66 +307,26 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
         req_map[key] = (void*)new_states;
     }
 
-    if (wf_map.find(req_id) == wf_map.end()) {
-        uint64_t ts = count++;
-        auto workflow_states = new wf_states;
-        workflow_states->name = service + function;
-        workflow_states->ts = ts;
-	if (!big_core) {
-            auto now = high_resolution_clock::now();
-            workflow_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
-	}
-        wf_map[req_id] = (void*)workflow_states;
-        new_wf(workflow_states);
+    auto func = service + function;
+
+    if (func_map.find(func) == func_map.end()) {
+        auto function_states = new func_states;
+        auto now = high_resolution_clock::now();
+        function_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
+        function_states->exec_time = -1;
+        func_map[func] = (void*)function_states;
     }
-    auto workflow_states = (struct wf_states*)wf_map[req_id];
 
-    if (wf_info_map.find(workflow_states->name) == wf_info_map.end()) {
-        auto workflow_info = new wf_info;
-        workflow_info->exec_time = -1;
-        wf_info_map[workflow_states->name] = (void*)workflow_info;
+    auto function_states = (struct func_states*)func_map[func];
 
-	auto core = get_big_core(workflow_info->exec_time);
-	if (core != this_shard_id()) {
-	    if (req_id == call_id)
-	        complete_wf(workflow_states);
-	
-	    return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
+    func_name_map[call_id] = func;
+
+    auto core = get_big_core(function_states->exec_time);
+    if (core != this_shard_id())
+        return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
-	} else
-            return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
-
-    } else {
-	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
-	//cout << utilization[cpu] << endl;
-        //if (workflow_info->exec_time > LONG_WF || utilization[cpu] >= 0) {
-        //if (workflow_info->exec_time >= LONG_WF ) {
-	    auto core = get_big_core(workflow_info->exec_time);
-	    if (core != this_shard_id()) {
-	        if (req_id == call_id)
-                    complete_wf(workflow_states);
-
-	        return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
-                                      call_id, service, function, jsargs);
-	    } else
-                return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
-
-//	} else
-           // return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
-    } //else 
-   //     return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
-
-    /*if (u < 90) {
-            return run_func(cpu, req_id, call_id, service, function, jsargs);
-    }
-    else {
-        size_t min = std::min_element(utilization.begin(), utilization.end()) - utilization.begin();
-	if (min != cpu && utilization[min] < 90)
-	    return sched_server.invoke_on(min , &scheduler::run_func, cpu, req_id,
-                                  call_id, service, function, jsargs);
-	else
-            return run_func(cpu, req_id, call_id, service, function, jsargs);
-    }*/
+    else
+        return run_func(prev_cpu, req_id, call_id, service, function, jsargs);
 }
 
 future<> scheduler::reply(std::string req_id, std::string call_id, std::string service, std::string ret) {
@@ -387,6 +335,9 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
+
+    auto func = func_name_map[call_id];
+    func_name_map.erase(call_id);
 
     if (states->local) {
         pt::ptree pt;
@@ -401,30 +352,25 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	auto s = (struct local_reply_states*)states;
         s->res.set_value(rep);
 
-	auto workflow_states = (struct wf_states*)wf_map[req_id];
-	auto workflow_info = (struct wf_info*)wf_info_map[workflow_states->name];
+        auto function_states = (struct func_states*)func_map[func];
 
-	if (workflow_info->exec_time == -1) {
+	if (function_states->exec_time == -1) {
 	    auto now = high_resolution_clock::now();
-            workflow_info->exec_time = duration_cast<milliseconds>(now.time_since_epoch()).count()
-	                                  - workflow_states->start_time;
+            function_states->exec_time = duration_cast<milliseconds>(now.time_since_epoch()).count() - function_states->start_time;
 	}
 
 	return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
-	    auto workflow_states = (struct wf_states*)wf_map[req_id];
-
-            workflow_states->q.push(
+	    engine().add_task(
                 std::move(make_task(default_scheduling_group(), [this, call_id, service, ret] () {
                     local_req_server().run_callback(call_id, service, ret);
                 }))
             );
 
-	    dispatch(false);
+	   // dispatch(false);
             return make_ready_future<>();
 	} else {
-	    delete_wf_states(req_id);
             sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
             return make_ready_future<>();
 	}
