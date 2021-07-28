@@ -11,7 +11,7 @@
 #include <seastar/core/scheduling.hh>
 #include <chrono>
 
-#define LONG_WF 50
+#define LONG_FUNC 50
 
 using namespace seastar;
 using namespace std::chrono;
@@ -20,30 +20,24 @@ namespace pt = boost::property_tree;
 std::vector<unsigned> utilization;
 std::vector<core_states> cores;
 
-void scheduler::dispatch(bool next_wf) {
-/*    auto i = this_shard_id();
-    if (big_core) {
-        cores[i].mu->lock();
-	if (!wf_queue.size()) {
-	    cores[i].busy = false;
-	    auto now = high_resolution_clock::now();
-            uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+void scheduler::dispatch(void) {
+    auto i = this_shard_id();
+    cores[i].mu->lock();
+    if (!cores[i].q.size()) {
+        cores[i].busy = false;
+        auto now = high_resolution_clock::now();
+        uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
 
-	    cores[i].busy_till = current;
-	}
-        cores[i].mu->unlock();
+        cores[i].busy_till = current;
     }
+    cores[i].mu->unlock();
 
-    if (!wf_queue.size()) {
+    if (!cores[i].q.size()) {
 	return;
     }
 
-    auto workflow_states = *wf_queue.begin();
-
-    while (workflow_states->q.size()) {
-        engine().add_task(workflow_states->q.front());
-        workflow_states->q.pop();
-    }*/
+    engine().add_task(cores[i].q.front());
+    cores[i].q.pop();
 };
 
 distributed<scheduler> sched_server;
@@ -186,113 +180,6 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
 future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string call_id, 
 		std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
-    auto key = service + call_id + "reply";
-
-    if (req_map.find(key) == req_map.end()) {
-        auto new_states = new reply_states;
-        new_states->local = false;
-        new_states->prev_cpuid = prev_cpu;
-        req_map[key] = (void*)new_states;
-    }
-
-    auto func = service + function;
-
-    if (func_map.find(func) == func_map.end()) {
-        auto function_states = new func_states;
-        auto now = high_resolution_clock::now();
-        function_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
-        function_states->exec_time = -1;
-        func_map[func] = (void*)function_states;
-    }
-
-    func_name_map[call_id] = func;
-
-    auto function_states = (struct func_states*)func_map[func];
-
-//    workflow_states->q.push(
-    engine().add_task(
-        make_task(default_scheduling_group(), [this, req_id, call_id, service, function, jsargs] () {
-            local_req_server().run_func(req_id, call_id, service, function, jsargs);
-        })
-    );
-
-//    dispatch(false);
-    return make_ready_future<>();
-}
-
-size_t get_big_core(int64_t exec_time) {
-   if (smp::count <= HW_Q_COUNT)
-       return this_shard_id();
-
-   while (true) {
-    if(this_shard_id() % 2) {
-        for (int i = HW_Q_COUNT; i < smp::count; i++) {
-	    if (!cores[i].mu->try_lock())
-                continue;
-	    else {
-		auto now = high_resolution_clock::now();
-		uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
-		//if (!cores[i].busy || cores[i].busy_till < current || (cores[i].busy_till - current) < 5)  {
-		if (!cores[i].busy)  {
-		//if ((!cores[i].busy && utilization[i] < 70) || utilization[i] < 50)  {
-		//if (!cores[i].busy && utilization[i] < 70)  {
-		    cores[i].busy = true;
-		    if (exec_time == -1)
-		        cores[i].busy_till = INT_MAX;
-		    else
-		        cores[i].busy_till = std::max(cores[i].busy_till, current) + exec_time;
-		    cores[i].mu->unlock();
-		    
-	    cout << "core " << i << endl;
-		    return i;
-		} else {
-		    cores[i].mu->unlock();
-		}
-	    }
-	}
-    } else {
-        for (int i = smp::count - 1; i >= HW_Q_COUNT; i--) {
-	    if (!cores[i].mu->try_lock())
-                continue;
-	    else {
-		auto now = high_resolution_clock::now();
-		uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
-		//if (!cores[i].busy || cores[i].busy_till < current || (cores[i].busy_till - current) < 5)  {
-		if (!cores[i].busy)  {
-		//if ((!cores[i].busy && utilization[i] < 70) || utilization[i] < 50)  {
-		//if (!cores[i].busy && utilization[i] < 70)  {
-		    cores[i].busy = true;
-		    if (exec_time == -1)
-		        cores[i].busy_till = INT_MAX;
-		    else
-		        cores[i].busy_till = std::max(cores[i].busy_till, current) + exec_time;
-		    cores[i].mu->unlock();
-	    cout << "core " << i << endl;
-		    
-		    return i;
-		} else {
-		    cores[i].mu->unlock();
-		}
-	    }
-	}
-     }
-
-     if (exec_time < LONG_WF)
-         break;
-     /*else {
-         int i = (rand() % (smp::count - HW_Q_COUNT) + HW_Q_COUNT);
-	 return i;
-     }*/
-     //if (this_shard_id() >= HW_Q_COUNT)
-//	     break;
-   }
-	    cout << "local core" << endl;
-    return this_shard_id();
-}
-
-future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string call_id, 
-		std::string service, std::string function, std::string jsargs) {
-    auto cpu = engine().cpu_id();
     auto u = get_utilization();
     utilization[cpu] = u; 
 
@@ -317,11 +204,82 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
         func_map[func] = (void*)function_states;
     }
 
+    func_name_map[call_id] = func;
+
+    auto function_states = (struct func_states*)func_map[func];
+
+    cores[cpu].q.push(
+    //engine().add_task(
+        make_task(default_scheduling_group(), [this, req_id, call_id, service, function, jsargs] () {
+            local_req_server().run_func(req_id, call_id, service, function, jsargs);
+        })
+    );
+
+    dispatch();
+    return make_ready_future<>();
+}
+
+size_t get_core(int64_t exec_time) {
+    uint64_t min = ULLONG_MAX;
+    int min_index = HW_Q_COUNT;
+    auto now = high_resolution_clock::now();
+    uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+ 
+    for (int i = HW_Q_COUNT; i < smp::count; i++) {
+        cores[i].mu->lock();
+        if (cores[i].busy_till < min) {
+            min = cores[i].busy_till;
+            min_index = i;
+        }
+        cores[i].mu->unlock();
+    }
+ 
+    if (exec_time < LONG_FUNC && exec_time >= 0) {
+        for (int i = 0; i < smp::count; i++) {
+            cores[i].mu->lock();
+           if (cores[i].busy_till < min) {
+                min = cores[i].busy_till;
+                min_index = i;
+            }
+            cores[i].mu->unlock();
+        }
+    }
+
+    cores[min_index].mu->lock();
+    cores[min_index].busy = true;
+    cores[min_index].busy_till = std::max(cores[min_index].busy_till, current) + exec_time;
+    cores[min_index].mu->unlock();
+
+    return min_index;
+}
+
+future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string call_id, 
+		std::string service, std::string function, std::string jsargs) {
+    auto cpu = engine().cpu_id();
+    auto key = service + call_id + "reply";
+
+    if (req_map.find(key) == req_map.end()) {
+        auto new_states = new reply_states;
+        new_states->local = false;
+        new_states->prev_cpuid = prev_cpu;
+        req_map[key] = (void*)new_states;
+    }
+
+    auto func = service + function;
+
+    if (func_map.find(func) == func_map.end()) {
+        auto function_states = new func_states;
+        auto now = high_resolution_clock::now();
+        function_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
+        function_states->exec_time = -1;
+        func_map[func] = (void*)function_states;
+    }
+
     auto function_states = (struct func_states*)func_map[func];
 
     func_name_map[call_id] = func;
 
-    auto core = get_big_core(function_states->exec_time);
+    auto core = get_core(function_states->exec_time);
     if (core != this_shard_id())
         return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
@@ -359,6 +317,7 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
             function_states->exec_time = duration_cast<milliseconds>(now.time_since_epoch()).count() - function_states->start_time;
 	}
 
+	dispatch();
 	return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
@@ -368,10 +327,11 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
                 }))
             );
 
-	   // dispatch(false);
+	    dispatch();
             return make_ready_future<>();
 	} else {
             sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
+	    dispatch();
             return make_ready_future<>();
 	}
     }

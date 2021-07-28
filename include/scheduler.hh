@@ -54,6 +54,8 @@ struct core_states {
     boost::shared_ptr<boost::mutex> mu;
     bool busy = false;
     uint64_t busy_till = 0;
+    std::queue<task*> q;
+
     core_states() {
         mu = boost::make_shared<boost::mutex>();
     }
@@ -77,7 +79,7 @@ private:
     bool big_core = false;
 
 public:
-    void dispatch(bool next_wf);
+    void dispatch();
 
     void start();
     void* get_req_states(std::string key);
