@@ -11,7 +11,7 @@
 #include <seastar/core/scheduling.hh>
 #include <chrono>
 
-#define LONG_FUNC 50
+#define LONG_FUNC 500
 
 using namespace seastar;
 using namespace std::chrono;
@@ -26,7 +26,7 @@ void scheduler::dispatch(void) {
     if (!cores[i].q.size()) {
         cores[i].busy = false;
         auto now = high_resolution_clock::now();
-        uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+        uint64_t current = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
 
         cores[i].busy_till = current;
     }
@@ -199,7 +199,7 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     if (func_map.find(func) == func_map.end()) {
         auto function_states = new func_states;
         auto now = high_resolution_clock::now();
-        function_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
+        function_states->start_time = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
         function_states->exec_time = -1;
         func_map[func] = (void*)function_states;
     }
@@ -220,10 +220,13 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 }
 
 size_t get_core(int64_t exec_time) {
+    if (smp::count <= HW_Q_COUNT)
+        return this_shard_id();
+
     uint64_t min = ULLONG_MAX;
     int min_index = HW_Q_COUNT;
     auto now = high_resolution_clock::now();
-    uint64_t current = duration_cast<milliseconds>(now.time_since_epoch()).count();
+    uint64_t current = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
  
     for (int i = HW_Q_COUNT; i < smp::count; i++) {
         cores[i].mu->lock();
@@ -234,7 +237,7 @@ size_t get_core(int64_t exec_time) {
         cores[i].mu->unlock();
     }
  
-    if (exec_time < LONG_FUNC && exec_time >= 0) {
+    if (exec_time < LONG_FUNC && exec_time != -1) {
         for (int i = 0; i < smp::count; i++) {
             cores[i].mu->lock();
            if (cores[i].busy_till < min) {
@@ -270,7 +273,7 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
     if (func_map.find(func) == func_map.end()) {
         auto function_states = new func_states;
         auto now = high_resolution_clock::now();
-        function_states->start_time = duration_cast<milliseconds>(now.time_since_epoch()).count();
+        function_states->start_time = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
         function_states->exec_time = -1;
         func_map[func] = (void*)function_states;
     }
@@ -297,6 +300,13 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
     auto func = func_name_map[call_id];
     func_name_map.erase(call_id);
 
+    auto function_states = (struct func_states*)func_map[func];
+
+    if (function_states->exec_time == -1) {
+        auto now = high_resolution_clock::now();
+        function_states->exec_time = duration_cast<microseconds>(now.time_since_epoch()).count()/100 - function_states->start_time;
+    }
+
     if (states->local) {
         pt::ptree pt;
         std::istringstream is(ret);
@@ -309,13 +319,6 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 
 	auto s = (struct local_reply_states*)states;
         s->res.set_value(rep);
-
-        auto function_states = (struct func_states*)func_map[func];
-
-	if (function_states->exec_time == -1) {
-	    auto now = high_resolution_clock::now();
-            function_states->exec_time = duration_cast<milliseconds>(now.time_since_epoch()).count() - function_states->start_time;
-	}
 
 	dispatch();
 	return make_ready_future<>();
