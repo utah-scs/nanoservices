@@ -175,7 +175,7 @@ void req_service::run_callback(std::string call_id, std::string service, sstring
     }
 }
 
-void req_service::run_func(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs) {
+void req_service::run_func(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs, struct func_states* function_states) {
     v8::Locker locker{isolate};              
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
@@ -206,12 +206,26 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
     argv[2] = String::NewFromUtf8(isolate, jsargs.c_str(), NewStringType::kNormal)
                                  .ToLocalChecked();
 
+    auto now = high_resolution_clock::now();
+    auto start_time = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 	 auto cstr = "error\n";
 	 get_local_sched()->reply(req_id, call_id, service, to_sstring(cstr));
 
     } else {
     }
+
+    now = high_resolution_clock::now();
+    function_states->mu->lock();
+    function_states->count++;
+    function_states->total_exec_time += duration_cast<microseconds>(now.time_since_epoch()).count()/100 - start_time;
+    function_states->exec_time = function_states->total_exec_time/1000;
+    if (function_states->count >= 1000) {
+	function_states->count = 0;
+	function_states->total_exec_time = 0;
+    }
+    function_states->mu->unlock();
+    cout << service << function << " " << function_states->exec_time << endl;
 }
 
 enum AllocationSpace {

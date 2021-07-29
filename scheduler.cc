@@ -19,6 +19,7 @@ namespace pt = boost::property_tree;
 
 std::vector<unsigned> utilization;
 std::vector<core_states> cores;
+std::unordered_map<std::string, void*> func_map;
 
 void scheduler::dispatch(void) {
     auto i = this_shard_id();
@@ -183,7 +184,7 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     auto u = get_utilization();
     utilization[cpu] = u; 
 
-    cout << utilization << endl;
+//    cout << utilization << endl;
 
     auto key = service + call_id + "reply";
 
@@ -198,20 +199,17 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 
     if (func_map.find(func) == func_map.end()) {
         auto function_states = new func_states;
-        auto now = high_resolution_clock::now();
-        function_states->start_time = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
-        function_states->exec_time = -1;
         func_map[func] = (void*)function_states;
     }
-
-    func_name_map[call_id] = func;
 
     auto function_states = (struct func_states*)func_map[func];
 
     cores[cpu].q.push(
     //engine().add_task(
-        make_task(default_scheduling_group(), [this, req_id, call_id, service, function, jsargs] () {
-            local_req_server().run_func(req_id, call_id, service, function, jsargs);
+        make_task(default_scheduling_group(), [this, req_id, call_id, service, function,
+		                               jsargs, function_states] () {
+            local_req_server().run_func(req_id, call_id, service, function, jsargs,
+			                function_states);
         })
     );
 
@@ -272,15 +270,10 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 
     if (func_map.find(func) == func_map.end()) {
         auto function_states = new func_states;
-        auto now = high_resolution_clock::now();
-        function_states->start_time = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
-        function_states->exec_time = -1;
         func_map[func] = (void*)function_states;
     }
 
     auto function_states = (struct func_states*)func_map[func];
-
-    func_name_map[call_id] = func;
 
     auto core = get_core(function_states->exec_time);
     if (core != this_shard_id())
@@ -296,16 +289,6 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
-
-    auto func = func_name_map[call_id];
-    func_name_map.erase(call_id);
-
-    auto function_states = (struct func_states*)func_map[func];
-
-    if (function_states->exec_time == -1) {
-        auto now = high_resolution_clock::now();
-        function_states->exec_time = duration_cast<microseconds>(now.time_since_epoch()).count()/100 - function_states->start_time;
-    }
 
     if (states->local) {
         pt::ptree pt;

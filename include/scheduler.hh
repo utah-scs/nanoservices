@@ -43,9 +43,15 @@ struct callback_states {
 };
 
 struct func_states {
-    uint64_t start_time;
-    int64_t exec_time;
+    boost::shared_ptr<boost::mutex> mu;
+    unsigned count;
+    unsigned total_exec_time;
+    int exec_time;
     func_states() {
+	count = 0;
+        exec_time = -1;
+        total_exec_time = 0;
+	mu = boost::make_shared<boost::mutex>();
     }
     ~func_states() {}
 };
@@ -72,9 +78,6 @@ struct core_states {
 class scheduler {
 private:
     std::unordered_map<std::string, void*> req_map;
-    std::unordered_map<std::string, void*> func_map;
-    std::unordered_map<std::string, string> func_name_map;
-    //std::set<struct wf_states*, cmp> wf_queue;
     uint64_t count = 0;
     bool big_core = false;
 

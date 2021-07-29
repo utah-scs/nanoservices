@@ -95,6 +95,6 @@ public:
     future<> stop();
     future<> register_service(std::string service);
     future<> js();
-    void run_func(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs);
+    void run_func(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs, struct func_states* states);
     void run_callback(std::string call_id, std::string service, sstring ret);
 };
