@@ -184,7 +184,7 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     auto u = get_utilization();
     utilization[cpu] = u; 
 
-//    cout << utilization << endl;
+    cout << utilization << endl;
 
     auto key = service + call_id + "reply";
 
@@ -248,6 +248,8 @@ size_t get_core(int64_t exec_time) {
 
     cores[min_index].mu->lock();
     cores[min_index].busy = true;
+    if (exec_time == 0)
+        exec_time = 1;
     cores[min_index].busy_till = std::max(cores[min_index].busy_till, current) + exec_time;
     cores[min_index].mu->unlock();
 

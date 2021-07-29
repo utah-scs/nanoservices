@@ -225,7 +225,7 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
 	function_states->total_exec_time = 0;
     }
     function_states->mu->unlock();
-    cout << service << function << " " << function_states->exec_time << endl;
+//    cout << service << function << " " << function_states->exec_time << endl;
 }
 
 enum AllocationSpace {
