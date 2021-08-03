@@ -4,6 +4,7 @@
 #include <queue>
 #include <boost/thread/mutex.hpp>
 #include <boost/make_shared.hpp>
+#include <atomic>
 
 using namespace seastar;
 using namespace redis;
@@ -43,38 +44,34 @@ struct callback_states {
 };
 
 struct func_states {
-    boost::shared_ptr<boost::mutex> mu;
-    unsigned count;
-    unsigned total_exec_time;
-    int exec_time;
+    std::atomic<unsigned> *count;
+    std::atomic<uint64_t> *total_exec_time;
+    std::atomic<int> *exec_time;
     func_states() {
-	count = 0;
-        exec_time = -1;
-        total_exec_time = 0;
-	mu = boost::make_shared<boost::mutex>();
+	count = new std::atomic<unsigned>(0);
+        exec_time = new std::atomic<int>(-1);
+        total_exec_time = new std::atomic<uint64_t>( 0);
     }
     ~func_states() {}
 };
 
 struct core_states {
     boost::shared_ptr<boost::mutex> mu;
-    bool busy = false;
-    uint64_t busy_till = 0;
+    std::atomic<bool> *busy;
+    std::atomic<uint64_t> *busy_till;
     std::queue<task*> q;
 
-    core_states() {
+    void init() {
+        busy = new std::atomic<bool>(false);
+	busy_till = new std::atomic<uint64_t>(0);
         mu = boost::make_shared<boost::mutex>();
+    }
+    core_states() {
     }
     ~core_states() {
     }
 };
 
-/*struct cmp {
-    bool operator() (struct wf_states* left, struct wf_states* right) const { 
-        return (left->ts) < (right->ts);
-    }
-};
-*/
 class scheduler {
 private:
     std::unordered_map<std::string, void*> req_map;

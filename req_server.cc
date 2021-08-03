@@ -9,7 +9,6 @@
 #include <condition_variable>
 #include <thread> 
 #include <fstream>
-#include <chrono>
 #include <string>
 #include <functional>
 #include <boost/uuid/detail/sha1.hpp>
@@ -22,7 +21,6 @@
 using namespace std;
 using namespace seastar;
 using namespace v8;
-using namespace std::chrono;
 using namespace shredder;
 using namespace boost::uuids;
 
@@ -206,8 +204,7 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
     argv[2] = String::NewFromUtf8(isolate, jsargs.c_str(), NewStringType::kNormal)
                                  .ToLocalChecked();
 
-    auto now = high_resolution_clock::now();
-    auto start_time = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
+    auto start_time = rdtsc();
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
 	 auto cstr = "error\n";
 	 get_local_sched()->reply(req_id, call_id, service, to_sstring(cstr));
@@ -215,16 +212,18 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
     } else {
     }
 
-    now = high_resolution_clock::now();
-    function_states->mu->lock();
-    function_states->count++;
-    function_states->total_exec_time += duration_cast<microseconds>(now.time_since_epoch()).count()/100 - start_time;
-    function_states->exec_time = function_states->total_exec_time/1000;
-    if (function_states->count >= 1000) {
-	function_states->count = 0;
-	function_states->total_exec_time = 0;
+    //function_states->mu->lock();
+    auto count = function_states->count->load() + 1;
+    function_states->count->store(count);
+    auto now = rdtsc();
+    auto total = function_states->total_exec_time->load() + (now - start_time);
+    function_states->total_exec_time->store(total);
+    function_states->exec_time->store(total/count);
+    if (count >= 1000) {
+	function_states->count->store(0);
+	function_states->total_exec_time->store(0);
     }
-    function_states->mu->unlock();
+    //function_states->mu->unlock();
 //    cout << service << function << " " << function_states->exec_time << endl;
 }
 

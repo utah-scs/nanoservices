@@ -9,12 +9,10 @@
 #include <seastar/core/metrics_types.hh>
 #include <seastar/core/metrics_api.hh>
 #include <seastar/core/scheduling.hh>
-#include <chrono>
 
-#define LONG_FUNC 500
+#define LONG_FUNC 50*2400000
 
 using namespace seastar;
-using namespace std::chrono;
 namespace pt = boost::property_tree;
 
 std::vector<unsigned> utilization;
@@ -23,15 +21,14 @@ std::unordered_map<std::string, void*> func_map;
 
 void scheduler::dispatch(void) {
     auto i = this_shard_id();
-    cores[i].mu->lock();
+//    cores[i].mu->lock();
     if (!cores[i].q.size()) {
-        cores[i].busy = false;
-        auto now = high_resolution_clock::now();
-        uint64_t current = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
+        cores[i].busy->store(false);
+        uint64_t current = rdtsc();
 
-        cores[i].busy_till = current;
+        cores[i].busy_till->store(current);
     }
-    cores[i].mu->unlock();
+//    cores[i].mu->unlock();
 
     if (!cores[i].q.size()) {
 	return;
@@ -49,6 +46,8 @@ void scheduler::start() {
     if (this_shard_id() == 0) {
         utilization.resize(smp::count, 0);
         cores.resize(smp::count, core_states());
+	for (int i = 0; i < smp::count; i++)
+	    cores[i].init();
     }
 }
 
@@ -217,42 +216,45 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     return make_ready_future<>();
 }
 
-size_t get_core(int64_t exec_time) {
+size_t get_core(uint64_t exec_time) {
     if (smp::count <= HW_Q_COUNT)
         return this_shard_id();
 
     uint64_t min = ULLONG_MAX;
     int min_index = HW_Q_COUNT;
-    auto now = high_resolution_clock::now();
-    uint64_t current = duration_cast<microseconds>(now.time_since_epoch()).count()/100;
+    uint64_t current = rdtsc();
  
     for (int i = HW_Q_COUNT; i < smp::count; i++) {
-        cores[i].mu->lock();
-        if (cores[i].busy_till < min) {
-            min = cores[i].busy_till;
+        //cores[i].mu->lock();
+	auto busy_till = cores[i].busy_till->load();
+        if (busy_till < min) {
+            min = busy_till;
             min_index = i;
         }
-        cores[i].mu->unlock();
+        //cores[i].mu->unlock();
     }
  
     if (exec_time < LONG_FUNC && exec_time != -1) {
         for (int i = 0; i < smp::count; i++) {
-            cores[i].mu->lock();
-           if (cores[i].busy_till < min) {
-                min = cores[i].busy_till;
+           //cores[i].mu->lock();
+	   auto busy_till = cores[i].busy_till->load();
+           if (busy_till < min) {
+                min = busy_till;
                 min_index = i;
             }
-            cores[i].mu->unlock();
+            //cores[i].mu->unlock();
         }
     }
 
-    cores[min_index].mu->lock();
-    cores[min_index].busy = true;
+    //cores[min_index].mu->lock();
+    cores[min_index].busy->store(true);
     if (exec_time == 0)
         exec_time = 1;
-    cores[min_index].busy_till = std::max(cores[min_index].busy_till, current) + exec_time;
-    cores[min_index].mu->unlock();
 
+    auto busy_till = cores[min_index].busy_till->load();
+    cores[min_index].busy_till->store(std::max(busy_till, current) + exec_time);
+    //cores[min_index].mu->unlock();
+    
     return min_index;
 }
 
@@ -277,7 +279,7 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 
     auto function_states = (struct func_states*)func_map[func];
 
-    auto core = get_core(function_states->exec_time);
+    auto core = get_core(function_states->exec_time->load());
     if (core != this_shard_id())
         return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
