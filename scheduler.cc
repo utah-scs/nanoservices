@@ -11,6 +11,7 @@
 #include <seastar/core/scheduling.hh>
 
 #define LONG_FUNC 50*2400000
+#define GATE 400*2400
 
 using namespace seastar;
 namespace pt = boost::property_tree;
@@ -19,7 +20,7 @@ std::vector<unsigned> utilization;
 std::vector<core_states> cores;
 std::unordered_map<std::string, void*> func_map;
 
-void scheduler::dispatch(void) {
+void dispatch(void) {
     auto i = this_shard_id();
 //    cores[i].mu->lock();
     if (!cores[i].q.size()) {
@@ -40,6 +41,9 @@ void scheduler::dispatch(void) {
 
 distributed<scheduler> sched_server;
 
+int pp = 0;
+uint64_t pptotal = 0;
+uint64_t tsp;
 void scheduler::start() {
     if (this_shard_id() >= HW_Q_COUNT)
         big_core = true;
@@ -49,6 +53,27 @@ void scheduler::start() {
 	for (int i = 0; i < smp::count; i++)
 	    cores[i].init();
     }
+//    if (this_shard_id() ==8)
+//        ping();
+}
+
+future<> scheduler::ping() {
+    tsp = rdtsc();
+    return sched_server.invoke_on(9, &scheduler::pong);
+}
+
+future<> scheduler::pong() {
+    sched_server.invoke_on(8, &scheduler::test_reply);
+    return make_ready_future<>();
+}
+
+future<> scheduler::test_reply() {
+    pp++;
+    pptotal += (rdtsc() - tsp);
+    cout << "ping pong" << pptotal/pp << endl;
+    //cout << "ping pong "<< rdtsc() - tsp << endl;
+    ping();
+    return make_ready_future<>();
 }
 
 void scheduler::new_service(std::string service) {
@@ -220,9 +245,16 @@ size_t get_core(uint64_t exec_time) {
     if (smp::count <= HW_Q_COUNT)
         return this_shard_id();
 
+    uint64_t current = rdtsc();
+
+    auto busy_local = cores[this_shard_id()].busy_till->load();
+    if ((busy_local - current) < GATE) {
+        cores[this_shard_id()].busy_till->store(std::max(busy_local, current) + exec_time);
+        return this_shard_id();
+    }
+
     uint64_t min = ULLONG_MAX;
     int min_index = HW_Q_COUNT;
-    uint64_t current = rdtsc();
  
     for (int i = HW_Q_COUNT; i < smp::count; i++) {
         //cores[i].mu->lock();

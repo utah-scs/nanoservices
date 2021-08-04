@@ -79,13 +79,15 @@ private:
     bool big_core = false;
 
 public:
-    void dispatch();
-
     void start();
     void* get_req_states(std::string key);
     void set_req_states(std::string key, void* states);
     void* get_wf_states(std::string key);
     void set_wf_states(std::string key, void* states);
+
+    future<> ping();
+    future<> pong();
+    future<> test_reply();
 
     future<> stop() {
       return make_ready_future<>();

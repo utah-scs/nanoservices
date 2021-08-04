@@ -219,7 +219,7 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
     auto total = function_states->total_exec_time->load() + (now - start_time);
     function_states->total_exec_time->store(total);
     function_states->exec_time->store(total/count);
-    if (count >= 1000) {
+    if (count >= 100) {
 	function_states->count->store(0);
 	function_states->total_exec_time->store(0);
     }
