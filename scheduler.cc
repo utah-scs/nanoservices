@@ -11,7 +11,7 @@
 #include <seastar/core/scheduling.hh>
 
 #define LONG_FUNC 50*2400000
-#define GATE 400*2400
+#define GATE 1000*2400
 
 using namespace seastar;
 namespace pt = boost::property_tree;
@@ -248,7 +248,7 @@ size_t get_core(uint64_t exec_time) {
     uint64_t current = rdtsc();
 
     auto busy_local = cores[this_shard_id()].busy_till->load();
-    if ((busy_local - current) < GATE) {
+    if (exec_time < GATE) {
         cores[this_shard_id()].busy_till->store(std::max(busy_local, current) + exec_time);
         return this_shard_id();
     }
