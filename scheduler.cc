@@ -21,7 +21,7 @@ std::vector<unsigned> utilization;
 std::vector<core_states> cores;
 std::unordered_map<std::string, void*> func_map;
 
-void dispatch(void) {
+void scheduler::dispatch(void) {
     auto i = this_shard_id();
 //    cores[i].mu->lock();
 /*    if (!cores[i].q.size()) {
@@ -36,8 +36,15 @@ void dispatch(void) {
 	return;
     }
 
-    engine().add_task(cores[i].q.front());
-    cores[i].q.pop();
+
+/*    engine().add_task(cores[i].q.front());
+    cores[i].q.pop();*/
+
+    if (cores[i].task_map.find(cores[i].q.front()) != cores[i].task_map.end()) {
+        engine().add_task(cores[i].task_map[cores[i].q.front()]);
+	cores[i].task_map.erase(cores[i].q.front());
+	//cores[i].q.pop();
+    }
 };
 
 distributed<scheduler> sched_server;
@@ -231,20 +238,22 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 
     auto function_states = (struct func_states*)func_map[func];
 
-    cores[cpu].q.push(
+    cores[cpu].task_map[call_id] = 
+    //cores[cpu].q.push(
     //engine().add_task(
         make_task(default_scheduling_group(), [this, req_id, call_id, service, function,
 		                               jsargs, function_states] () {
             local_req_server().run_func(req_id, call_id, service, function, jsargs,
 			                function_states);
         })
-    );
+    ;
+    //);
 
     dispatch();
     return make_ready_future<>();
 }
 
-size_t get_core(uint64_t exec_time) {
+size_t get_core(uint64_t exec_time, sstring call_id) {
     if (smp::count <= HW_Q_COUNT)
         return this_shard_id();
 
@@ -256,6 +265,7 @@ size_t get_core(uint64_t exec_time) {
         return this_shard_id();
     }
 
+    cores[0].mu->lock();
     uint64_t min = ULLONG_MAX;
     int min_index = HW_Q_COUNT;
  
@@ -270,13 +280,14 @@ size_t get_core(uint64_t exec_time) {
     }
  
     if (exec_time < LONG_FUNC && exec_time != -1) {
-        for (int i = 0; i < smp::count; i++) {
+        //min = ULLONG_MAX;
+        for (int i = 0; i < HW_Q_COUNT; i++) {
            //cores[i].mu->lock();
 	   auto busy_till = cores[i].busy_till->load();
            if (busy_till < min) {
                 min = busy_till;
                 min_index = i;
-            }
+           }
             //cores[i].mu->unlock();
         }
     }
@@ -286,9 +297,11 @@ size_t get_core(uint64_t exec_time) {
     if (exec_time == 0)
         exec_time = 1;
 
+    cores[min_index].q.push(call_id);
     auto busy_till = cores[min_index].busy_till->load();
     cores[min_index].busy_till->store(std::max(busy_till, current) + exec_time);
     //cores[min_index].mu->unlock();
+    cores[0].mu->unlock();
     
     return min_index;
 }
@@ -314,7 +327,7 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 
     auto function_states = (struct func_states*)func_map[func];
 
-    auto core = get_core(function_states->exec_time->load());
+    auto core = get_core(function_states->exec_time->load(), call_id);
     if (core != this_shard_id())
         return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
@@ -328,6 +341,8 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
+    if (cores[cpu].q.size() && cores[cpu].q.front() == call_id)
+    cores[cpu].q.pop();
 
     curr_req.erase(call_id);
     if (!curr_req.size()) {
