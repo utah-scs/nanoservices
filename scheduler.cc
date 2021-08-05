@@ -11,7 +11,8 @@
 #include <seastar/core/scheduling.hh>
 
 #define LONG_FUNC 50*2400000
-#define GATE 1000*2400
+//#define GATE 1000*2400
+#define GATE 0
 
 using namespace seastar;
 namespace pt = boost::property_tree;
@@ -23,12 +24,12 @@ std::unordered_map<std::string, void*> func_map;
 void dispatch(void) {
     auto i = this_shard_id();
 //    cores[i].mu->lock();
-    if (!cores[i].q.size()) {
+/*    if (!cores[i].q.size()) {
         cores[i].busy->store(false);
         uint64_t current = rdtsc();
 
         cores[i].busy_till->store(current);
-    }
+    }*/
 //    cores[i].mu->unlock();
 
     if (!cores[i].q.size()) {
@@ -208,6 +209,8 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     auto u = get_utilization();
     utilization[cpu] = u; 
 
+    curr_req.insert(call_id);
+
     cout << utilization << endl;
 
     auto key = service + call_id + "reply";
@@ -325,6 +328,14 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
+
+    curr_req.erase(call_id);
+    if (!curr_req.size()) {
+        cores[cpu].busy->store(false);
+        uint64_t current = rdtsc();
+
+        cores[cpu].busy_till->store(current);
+    }
 
     if (states->local) {
         pt::ptree pt;

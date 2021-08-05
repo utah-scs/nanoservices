@@ -75,6 +75,7 @@ struct core_states {
 class scheduler {
 private:
     std::unordered_map<std::string, void*> req_map;
+    std::unordered_set<std::string> curr_req;
     uint64_t count = 0;
     bool big_core = false;
 
