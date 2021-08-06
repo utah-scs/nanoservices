@@ -1,7 +1,7 @@
 #pragma once
 #include "seastarkv.hh"
 #include "include/req_server.hh"
-#include <queue>
+#include <deque>
 #include <boost/thread/mutex.hpp>
 #include <boost/make_shared.hpp>
 #include <atomic>
@@ -60,7 +60,7 @@ struct core_states {
     std::atomic<bool> *busy;
     std::atomic<uint64_t> *busy_till;
     //std::queue<task*> q;
-    std::queue<sstring> q;
+    std::deque<sstring> q;
     std::unordered_map<std::string, task*> task_map;
 
     void init() {

@@ -40,11 +40,14 @@ void scheduler::dispatch(void) {
 /*    engine().add_task(cores[i].q.front());
     cores[i].q.pop();*/
 
+    cores[0].mu->lock();
     if (cores[i].task_map.find(cores[i].q.front()) != cores[i].task_map.end()) {
         engine().add_task(cores[i].task_map[cores[i].q.front()]);
 	cores[i].task_map.erase(cores[i].q.front());
-	//cores[i].q.pop();
+    } else if (curr_req.find(cores[i].q.front()) != curr_req.end()) {
+	cores[i].q.pop_front();
     }
+    cores[0].mu->unlock();
 };
 
 distributed<scheduler> sched_server;
@@ -297,7 +300,7 @@ size_t get_core(uint64_t exec_time, sstring call_id) {
     if (exec_time == 0)
         exec_time = 1;
 
-    cores[min_index].q.push(call_id);
+    cores[min_index].q.push_back(call_id);
     auto busy_till = cores[min_index].busy_till->load();
     cores[min_index].busy_till->store(std::max(busy_till, current) + exec_time);
     //cores[min_index].mu->unlock();
@@ -341,10 +344,16 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
     auto states = (struct reply_states*)req_map[key];
 
     req_map.erase(key);
-    if (cores[cpu].q.size() && cores[cpu].q.front() == call_id)
-    cores[cpu].q.pop();
 
+    cores[0].mu->lock();
+    for (auto it = cores[cpu].q.begin(); it != cores[cpu].q.end(); it++)
+	if (*it == call_id) {
+            cores[cpu].q.erase(it);
+	    break;
+        }
     curr_req.erase(call_id);
+    cores[0].mu->unlock();
+
     if (!curr_req.size()) {
         cores[cpu].busy->store(false);
         uint64_t current = rdtsc();
