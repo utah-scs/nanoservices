@@ -13,6 +13,7 @@
 #define LONG_FUNC 50*2400000
 //#define GATE 1000*2400
 #define GATE 0
+//#define BOOL_SCHED
 
 using namespace seastar;
 namespace pt = boost::property_tree;
@@ -270,10 +271,19 @@ size_t get_core(uint64_t exec_time, sstring call_id) {
 
     cores[0].mu->lock();
     uint64_t min = ULLONG_MAX;
-    int min_index = HW_Q_COUNT;
+    int min_index = -1;
  
     for (int i = HW_Q_COUNT; i < smp::count; i++) {
         //cores[i].mu->lock();
+#ifdef BOOL_SCHED
+	auto busy = cores[i].busy->load();
+	if (busy)
+	    continue;
+	else {
+	    min_index = i;
+	    break;
+	}
+#endif
 	auto busy_till = cores[i].busy_till->load();
         if (busy_till < min) {
             min = busy_till;
@@ -281,10 +291,19 @@ size_t get_core(uint64_t exec_time, sstring call_id) {
         }
         //cores[i].mu->unlock();
     }
- 
+
     if (exec_time < LONG_FUNC && exec_time != -1) {
         //min = ULLONG_MAX;
         for (int i = 0; i < HW_Q_COUNT; i++) {
+#ifdef BOOL_SCHED
+        auto busy = cores[i].busy->load();
+        if (busy)
+            continue;
+        else {
+            min_index = i;
+            break;
+        }
+#endif
            //cores[i].mu->lock();
 	   auto busy_till = cores[i].busy_till->load();
            if (busy_till < min) {
@@ -295,6 +314,11 @@ size_t get_core(uint64_t exec_time, sstring call_id) {
         }
     }
 
+#ifdef BOOL_SCHED
+    if (min_index == -1)
+        min_index = rand() % smp::count;
+#endif
+	
     //cores[min_index].mu->lock();
     cores[min_index].busy->store(true);
     if (exec_time == 0)
