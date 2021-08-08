@@ -45,8 +45,12 @@ void scheduler::dispatch(void) {
     if (cores[i].task_map.find(cores[i].q.front()) != cores[i].task_map.end()) {
         engine().add_task(cores[i].task_map[cores[i].q.front()]);
 	cores[i].task_map.erase(cores[i].q.front());
-    } else if (curr_req.find(cores[i].q.front()) != curr_req.end()) {
 	cores[i].q.pop_front();
+	cores[i].q.push_front("null");
+    } else { while  (cores[i].q.size() && cores[i].q.front() == "null" 
+		    ) {
+	cores[i].q.pop_front();
+    }
     }
     cores[0].mu->unlock();
 };
@@ -264,7 +268,8 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     return make_ready_future<>();
 }
 
-size_t get_core(uint64_t exec_time, sstring call_id) {
+size_t get_core(uint64_t exec_time, sstring req_id, sstring call_id, sstring service) {
+    auto cpu = this_shard_id();
     if (smp::count <= HW_Q_COUNT)
         return this_shard_id();
 
@@ -361,7 +366,7 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 
     auto function_states = (struct func_states*)func_map[func];
 
-    auto core = get_core(function_states->exec_time->load(), call_id);
+    auto core = get_core(function_states->exec_time->load(), req_id, call_id, service);
     if (core != this_shard_id())
         return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
@@ -383,7 +388,11 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	    break;
         }
     curr_req.erase(call_id);
-    cores[0].mu->unlock();
+
+    while  (cores[cpu].q.size() && cores[cpu].q.front() == "null"
+                    ) {
+        cores[cpu].q.pop_front();
+    }
 
     if (!curr_req.size()) {
         cores[cpu].busy->store(false);
@@ -391,6 +400,7 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 
         cores[cpu].busy_till->store(current);
     }
+    cores[0].mu->unlock();
 
     if (states->local) {
         pt::ptree pt;
@@ -410,18 +420,14 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
-	    engine().add_task(
-                std::move(make_task(default_scheduling_group(), [this, call_id, service, ret] () {
                     local_req_server().run_callback(call_id, service, ret);
-                }))
-            );
-
-	    dispatch();
+            
+		    dispatch();
 	    free(states);
             return make_ready_future<>();
 	} else {
-            sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
-	    dispatch();
+            sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret).then([&] {
+	    dispatch();});
 	    free(states);
             return make_ready_future<>();
 	}
