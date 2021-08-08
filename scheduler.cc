@@ -10,7 +10,7 @@
 #include <seastar/core/metrics_api.hh>
 #include <seastar/core/scheduling.hh>
 
-#define LONG_FUNC 50*2400000
+#define LONG_FUNC 5*2400000
 //#define GATE 1000*2400
 #define GATE 0
 //#define BOOL_SCHED
@@ -97,6 +97,11 @@ void* scheduler::get_req_states(std::string key) {
 
 void scheduler::set_req_states(std::string key, void* states) {
     req_map[key] = states;
+}
+
+void scheduler::del_req_states(std::string key) {
+    delete req_map[key];
+    req_map.erase(key);
 }
 
 // Write the current date in the specific "preferred format" defined in
@@ -220,7 +225,6 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     auto u = get_utilization();
     utilization[cpu] = u; 
 
-    curr_req.insert(call_id);
 
     cout << utilization << endl;
 
@@ -242,6 +246,8 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 
     auto function_states = (struct func_states*)func_map[func];
 
+    cores[0].mu->lock();
+    curr_req.insert(call_id);
     cores[cpu].task_map[call_id] = 
     //cores[cpu].q.push(
     //engine().add_task(
@@ -251,6 +257,7 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 			                function_states);
         })
     ;
+    cores[0].mu->unlock();
     //);
 
     dispatch();
@@ -399,6 +406,7 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
         s->res.set_value(rep);
 
 	dispatch();
+	free(states);
 	return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
@@ -409,10 +417,12 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
             );
 
 	    dispatch();
+	    free(states);
             return make_ready_future<>();
 	} else {
             sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret);
 	    dispatch();
+	    free(states);
             return make_ready_future<>();
 	}
     }

@@ -171,6 +171,7 @@ void req_service::run_callback(std::string call_id, std::string service, sstring
 
     } else {
     }
+    get_local_sched()->del_req_states(key);
 }
 
 void req_service::run_func(std::string req_id, std::string call_id, std::string service, std::string function, std::string jsargs, struct func_states* function_states) {
