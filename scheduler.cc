@@ -10,10 +10,10 @@
 #include <seastar/core/metrics_api.hh>
 #include <seastar/core/scheduling.hh>
 
-#define LONG_FUNC 50*2400000
+#define LONG_FUNC 5*2400000
 //#define GATE 1000*2400
 #define GATE 0
-//#define BOOL_SCHED
+#define BOOL_SCHED
 
 using namespace seastar;
 namespace pt = boost::property_tree;
@@ -308,7 +308,7 @@ size_t get_core(uint64_t exec_time, sstring req_id, sstring call_id, sstring ser
 	if (min < rdtsc())
             min = rdtsc();
 	// for hard sharding
-        //min = ULLONG_MAX;
+        min = ULLONG_MAX;
         for (int i = 0; i < HW_Q_COUNT; i++) {
 #ifdef BOOL_SCHED
         auto busy = cores[i].busy->load();
@@ -333,6 +333,8 @@ size_t get_core(uint64_t exec_time, sstring req_id, sstring call_id, sstring ser
     if (min_index == -1)
         min_index = rand() % smp::count;
 #endif
+    if (exec_time < 1*2400000)
+	min_index = this_shard_id();
 	
     //cores[min_index].mu->lock();
     cores[min_index].busy->store(true);
