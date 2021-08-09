@@ -47,10 +47,10 @@ void scheduler::dispatch(void) {
 	cores[i].task_map.erase(cores[i].q.front());
 	cores[i].q.pop_front();
 	cores[i].q.push_front("null");
-    } else { while  (cores[i].q.size() && cores[i].q.front() == "null" 
-		    ) {
-	cores[i].q.pop_front();
-    }
+    } else { 
+	while (cores[i].q.size() && cores[i].q.front() == "null") {
+	    cores[i].q.pop_front();
+        }
     }
     cores[0].mu->unlock();
 };
@@ -390,10 +390,10 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
             cores[cpu].q.erase(it);
 	    break;
         }
+
     curr_req.erase(call_id);
 
-    while  (cores[cpu].q.size() && cores[cpu].q.front() == "null"
-                    ) {
+    while  (cores[cpu].q.size() && cores[cpu].q.front() == "null") {
         cores[cpu].q.pop_front();
     }
 
@@ -423,9 +423,8 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
-                    local_req_server().run_callback(call_id, service, ret);
-            
-		    dispatch();
+            local_req_server().run_callback(call_id, service, ret);
+            dispatch();
 	    free(states);
             return make_ready_future<>();
 	} else {
