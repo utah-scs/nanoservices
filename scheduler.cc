@@ -10,7 +10,7 @@
 #include <seastar/core/metrics_api.hh>
 #include <seastar/core/scheduling.hh>
 
-#define LONG_FUNC 5*2400000
+#define LONG_FUNC 50*2400000
 //#define GATE 1000*2400
 #define GATE 0
 //#define BOOL_SCHED
@@ -305,6 +305,9 @@ size_t get_core(uint64_t exec_time, sstring req_id, sstring call_id, sstring ser
     }
 
     if (exec_time < LONG_FUNC && exec_time != -1) {
+	if (min < rdtsc())
+            min = rdtsc();
+	// for hard sharding
         //min = ULLONG_MAX;
         for (int i = 0; i < HW_Q_COUNT; i++) {
 #ifdef BOOL_SCHED
