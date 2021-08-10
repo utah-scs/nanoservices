@@ -88,6 +88,7 @@ int main(int argc, char** argv) {
 	            req_server.invoke_on_all(&req_service::register_service, std::string("post_storage.js"));
 	            req_server.invoke_on_all(&req_service::register_service, std::string("fanout.js"));
 	            req_server.invoke_on_all(&req_service::register_service, std::string("sched_bench.js"));
+	            req_server.invoke_on_all(&req_service::register_service, std::string("complex.js"));
                     // Start JS thread on all cores
                     return req_server.invoke_on_all(&req_service::js);
 		});

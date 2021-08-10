@@ -10,10 +10,10 @@
 #include <seastar/core/metrics_api.hh>
 #include <seastar/core/scheduling.hh>
 
-#define LONG_FUNC 5*2400000
+#define LONG_FUNC 50*2400000
 //#define GATE 1000*2400
 #define GATE 0
-#define BOOL_SCHED
+//#define BOOL_SCHED
 
 using namespace seastar;
 namespace pt = boost::property_tree;
@@ -46,12 +46,7 @@ void scheduler::dispatch(void) {
         engine().add_task(cores[i].task_map[cores[i].q.front()]);
 	cores[i].task_map.erase(cores[i].q.front());
 	cores[i].q.pop_front();
-	cores[i].q.push_front("null");
-    } else { 
-	while (cores[i].q.size() && cores[i].q.front() == "null") {
-	    cores[i].q.pop_front();
-        }
-    }
+    } 
     cores[0].mu->unlock();
 };
 
@@ -308,7 +303,7 @@ size_t get_core(uint64_t exec_time, sstring req_id, sstring call_id, sstring ser
 	if (min < rdtsc())
             min = rdtsc();
 	// for hard sharding
-        min = ULLONG_MAX;
+        //min = ULLONG_MAX;
         for (int i = 0; i < HW_Q_COUNT; i++) {
 #ifdef BOOL_SCHED
         auto busy = cores[i].busy->load();
@@ -394,10 +389,6 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
         }
 
     curr_req.erase(call_id);
-
-    while  (cores[cpu].q.size() && cores[cpu].q.front() == "null") {
-        cores[cpu].q.pop_front();
-    }
 
     if (!curr_req.size()) {
         cores[cpu].busy->store(false);
