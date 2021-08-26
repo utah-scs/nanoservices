@@ -55,6 +55,20 @@ struct func_states {
     ~func_states() {}
 };
 
+struct wf_states {
+    bool fuse;
+    unsigned count;
+    uint64_t total_exec_time;
+    int exec_time;
+    wf_states() {
+	fuse = false;
+	count = 0;
+        exec_time = -1;
+        total_exec_time = 0;
+    }
+    ~wf_states() {}
+};
+
 struct core_states {
     boost::shared_ptr<boost::mutex> mu;
     std::atomic<bool> *busy;
@@ -77,7 +91,11 @@ struct core_states {
 class scheduler {
 private:
     std::unordered_map<std::string, void*> req_map;
+    std::unordered_map<std::string, void*> req_wf_map;
     std::unordered_set<std::string> curr_req;
+    std::unordered_set<std::string> curr_wf;
+    std::unordered_map<std::string, uint64_t> wf_starts;
+
     uint64_t count = 0;
     bool big_core = false;
 

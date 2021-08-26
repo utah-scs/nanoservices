@@ -21,6 +21,7 @@ namespace pt = boost::property_tree;
 std::vector<unsigned> utilization;
 std::vector<core_states> cores;
 std::unordered_map<std::string, void*> func_map;
+std::unordered_map<std::string, void*> wf_map;
 
 void scheduler::dispatch(void) {
     auto i = this_shard_id();
@@ -42,7 +43,8 @@ void scheduler::dispatch(void) {
     cores[i].q.pop();*/
 
     cores[0].mu->lock();
-    if (cores[i].task_map.find(cores[i].q.front()) != cores[i].task_map.end()) {
+    if ((!curr_wf.size()) &&
+        (cores[i].task_map.find(cores[i].q.front()) != cores[i].task_map.end())) {
         engine().add_task(cores[i].task_map[cores[i].q.front()]);
 	cores[i].task_map.erase(cores[i].q.front());
 	cores[i].q.pop_front();
@@ -243,21 +245,38 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         func_map[func] = (void*)function_states;
     }
 
+    if (req_id == call_id)
+        req_wf_map[req_id] = wf_map[func];
+
+    auto workflow_states = (struct wf_states*)req_wf_map[req_id];
     auto function_states = (struct func_states*)func_map[func];
 
+    if (req_id == call_id)
+        wf_starts[req_id] = rdtsc();
+
     cores[0].mu->lock();
-    curr_req.insert(call_id);
-    cores[cpu].task_map[call_id] = 
-    //cores[cpu].q.push(
-    //engine().add_task(
+    if (workflow_states->fuse) {
+        curr_wf.insert(req_id);
+        engine().add_task(
         make_task(default_scheduling_group(), [this, req_id, call_id, service, function,
 		                               jsargs, function_states] () {
             local_req_server().run_func(req_id, call_id, service, function, jsargs,
 			                function_states);
-        })
-    ;
-    cores[0].mu->unlock();
+        }));
+    } else {
+        curr_req.insert(call_id);
+        cores[cpu].task_map[call_id] = 
+        //cores[cpu].q.push(
+        //engine().add_task(
+            make_task(default_scheduling_group(), [this, req_id, call_id, service, function,
+            	                               jsargs, function_states] () {
+                local_req_server().run_func(req_id, call_id, service, function, jsargs,
+            		                function_states);
+            })
+        ;
     //);
+    }
+    cores[0].mu->unlock();
 
     dispatch();
     return make_ready_future<>();
@@ -364,9 +383,28 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
         func_map[func] = (void*)function_states;
     }
 
-    auto function_states = (struct func_states*)func_map[func];
+    if (req_id == call_id && wf_map.find(func) == func_map.end()) {
+        auto workflow_states = new wf_states;
+	if (service == "complex.js")
+	    workflow_states->fuse = true;
+        wf_map[func] = (void*)workflow_states;
+    }
 
-    auto core = get_core(function_states->exec_time->load(), req_id, call_id, service);
+    if (req_id == call_id)
+	req_wf_map[req_id] = wf_map[func];
+
+    auto workflow_states = (struct wf_states*)req_wf_map[req_id];
+    auto function_states = (struct func_states*)func_map[func];
+    size_t core;
+
+    if (workflow_states->fuse) {
+	if (req_id == call_id)
+            core = get_core(workflow_states->exec_time, req_id, call_id, service);
+	else
+	    core = this_shard_id();
+    } else
+        core = get_core(function_states->exec_time->load(), req_id, call_id, service);
+
     if (core != this_shard_id())
         return sched_server.invoke_on(core, &scheduler::run_func, prev_cpu, req_id,
                                       call_id, service, function, jsargs);
@@ -421,6 +459,19 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	    free(states);
             return make_ready_future<>();
 	} else {
+	    auto workflow_states = (struct wf_states*)req_wf_map[req_id];
+	    req_wf_map.erase(req_id);
+	    workflow_states->count++;
+	    workflow_states->total_exec_time += (rdtsc() - wf_starts[req_id]);
+	    workflow_states->exec_time = (workflow_states->total_exec_time/workflow_states->count);
+	    if (workflow_states->count == 1000) {
+	        workflow_states->count = 0;
+		workflow_states->total_exec_time = 0;
+	    }
+	    wf_starts.erase(req_id);
+	    if (workflow_states->fuse)
+	        curr_wf.erase(req_id);
+
             sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret).then([&] {
 	    dispatch();});
 	    free(states);
