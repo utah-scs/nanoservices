@@ -91,7 +91,6 @@ struct core_states {
 class scheduler {
 private:
     std::unordered_map<std::string, void*> req_map;
-    std::unordered_map<std::string, void*> req_wf_map;
     std::unordered_set<std::string> curr_req;
     std::unordered_set<std::string> curr_wf;
     std::unordered_map<std::string, uint64_t> wf_starts;

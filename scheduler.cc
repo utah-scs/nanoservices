@@ -22,6 +22,8 @@ std::vector<unsigned> utilization;
 std::vector<core_states> cores;
 std::unordered_map<std::string, void*> func_map;
 std::unordered_map<std::string, void*> wf_map;
+boost::mutex req_wf_mu;
+std::unordered_map<std::string, void*> req_wf_map;
 
 void scheduler::dispatch(void) {
     auto i = this_shard_id();
@@ -245,10 +247,9 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
         func_map[func] = (void*)function_states;
     }
 
-    if (req_id == call_id)
-        req_wf_map[req_id] = wf_map[func];
-
+    req_wf_mu.lock();
     auto workflow_states = (struct wf_states*)req_wf_map[req_id];
+    req_wf_mu.unlock();
     auto function_states = (struct func_states*)func_map[func];
 
     if (req_id == call_id)
@@ -385,15 +386,20 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 
     if (req_id == call_id && wf_map.find(func) == func_map.end()) {
         auto workflow_states = new wf_states;
-	if (service == "complex.js")
+	if (service == "complex.js" || service == "post.js")
 	    workflow_states->fuse = true;
         wf_map[func] = (void*)workflow_states;
+	req_wf_mu.lock();
+	req_wf_map[req_id] = wf_map[func];
+	req_wf_mu.unlock();
     }
 
+    req_wf_mu.lock();
     if (req_id == call_id)
 	req_wf_map[req_id] = wf_map[func];
 
     auto workflow_states = (struct wf_states*)req_wf_map[req_id];
+    req_wf_mu.unlock();
     auto function_states = (struct func_states*)func_map[func];
     size_t core;
 
@@ -451,6 +457,7 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 
 	dispatch();
 	free(states);
+	//req_wf_map.erase(req_id);
 	return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
@@ -459,8 +466,9 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	    free(states);
             return make_ready_future<>();
 	} else {
+	    req_wf_mu.lock();
 	    auto workflow_states = (struct wf_states*)req_wf_map[req_id];
-	    req_wf_map.erase(req_id);
+	    req_wf_mu.unlock();
 	    workflow_states->count++;
 	    workflow_states->total_exec_time += (rdtsc() - wf_starts[req_id]);
 	    workflow_states->exec_time = (workflow_states->total_exec_time/workflow_states->count);
