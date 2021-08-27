@@ -386,7 +386,7 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 
     if (req_id == call_id && wf_map.find(func) == func_map.end()) {
         auto workflow_states = new wf_states;
-	if (service == "complex.js" || service == "post.js")
+	if (service == "complex.js" || service == "post.js" /*|| service == "fanout.js"*/)
 	    workflow_states->fuse = true;
         wf_map[func] = (void*)workflow_states;
 	req_wf_mu.lock();
@@ -455,9 +455,15 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	auto s = (struct local_reply_states*)states;
         s->res.set_value(rep);
 
+	cores[0].mu->lock();
+        curr_wf.erase(req_id);
+        cores[0].mu->unlock();
+
 	dispatch();
 	free(states);
-	//req_wf_map.erase(req_id);
+	req_wf_mu.lock();
+	req_wf_map.erase(req_id);
+	req_wf_mu.unlock();
 	return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
@@ -477,8 +483,10 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 		workflow_states->total_exec_time = 0;
 	    }
 	    wf_starts.erase(req_id);
+            cores[0].mu->lock();
 	    if (workflow_states->fuse)
 	        curr_wf.erase(req_id);
+            cores[0].mu->unlock();
 
             sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret).then([&] {
 	    dispatch();});
