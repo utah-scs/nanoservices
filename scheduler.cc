@@ -10,7 +10,7 @@
 #include <seastar/core/metrics_api.hh>
 #include <seastar/core/scheduling.hh>
 
-#define LONG_FUNC 50*2400000
+#define LONG_FUNC 5*2400000
 //#define GATE 1000*2400
 #define GATE 0
 //#define BOOL_SCHED
@@ -348,8 +348,8 @@ size_t get_core(uint64_t exec_time, sstring req_id, sstring call_id, sstring ser
     if (min_index == -1)
         min_index = rand() % smp::count;
 #endif
-    if (exec_time < 1*2400000)
-	min_index = this_shard_id();
+//    if (exec_time < 1*2400000)
+//	min_index = this_shard_id();
 	
     //cores[min_index].mu->lock();
     cores[min_index].busy->store(true);
@@ -384,17 +384,16 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
         func_map[func] = (void*)function_states;
     }
 
-    if (req_id == call_id && wf_map.find(func) == func_map.end()) {
+    req_wf_mu.lock();
+    if (req_id == call_id && wf_map.find(func) == wf_map.end()) {
         auto workflow_states = new wf_states;
-	if (service == "complex.js" || service == "post.js" /*|| service == "fanout.js"*/)
+	if (service == "complex.js" || service == "post.js" || service == "fanout.js")
 	    workflow_states->fuse = true;
+
         wf_map[func] = (void*)workflow_states;
-	req_wf_mu.lock();
 	req_wf_map[req_id] = wf_map[func];
-	req_wf_mu.unlock();
     }
 
-    req_wf_mu.lock();
     if (req_id == call_id)
 	req_wf_map[req_id] = wf_map[func];
 
@@ -461,9 +460,9 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 
 	dispatch();
 	free(states);
-	req_wf_mu.lock();
-	req_wf_map.erase(req_id);
-	req_wf_mu.unlock();
+	//req_wf_mu.lock();
+	//req_wf_map.erase(req_id);
+	//req_wf_mu.unlock();
 	return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
@@ -474,14 +473,15 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
 	} else {
 	    req_wf_mu.lock();
 	    auto workflow_states = (struct wf_states*)req_wf_map[req_id];
-	    req_wf_mu.unlock();
-	    workflow_states->count++;
-	    workflow_states->total_exec_time += (rdtsc() - wf_starts[req_id]);
-	    workflow_states->exec_time = (workflow_states->total_exec_time/workflow_states->count);
 	    if (workflow_states->count == 1000) {
 	        workflow_states->count = 0;
 		workflow_states->total_exec_time = 0;
 	    }
+
+	    workflow_states->count++;
+	    workflow_states->total_exec_time += (rdtsc() - wf_starts[req_id]);
+	    workflow_states->exec_time = (workflow_states->total_exec_time/workflow_states->count);
+	    req_wf_mu.unlock();
 	    wf_starts.erase(req_id);
             cores[0].mu->lock();
 	    if (workflow_states->fuse)
