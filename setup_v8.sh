@@ -18,6 +18,6 @@ python build/gen.py
 sudo ninja -C out
 sudo cp out/gn /usr/local/bin/
 cd ../
-gn gen x64.release --args='is_debug=false target_cpu="x64" v8_monolithic = true v8_use_external_startup_data = false use_custom_libcxx = false is_component_build = false'
-ninja -C x64.release v8_monolith
+gn gen out/x64.release --args='dcheck_always_on = false is_clang = false is_component_build = false is_debug = false target_cpu = "x64" use_custom_libcxx = false v8_monolithic = true v8_use_external_startup_data = false v8_enable_pointer_compression = false'
+ninja -C out/x64.release v8_monolith
 cd ../
