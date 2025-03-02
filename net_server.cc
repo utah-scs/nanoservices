@@ -8,7 +8,7 @@ distributed<network_server> net_server;
 void network_server::start() {
      listen_options lo;
      lo.reuse_address = true;
-     _listener = engine().listen(make_ipv4_address({_port}), lo);
+     _listener = make_lw_shared<seastar::server_socket>(engine().listen(make_ipv4_address({_port}), lo));
      keep_doing([this] {
         return _listener->accept().then([this] (accept_result ar) mutable {
             connected_socket fd = std::move(ar.connection);

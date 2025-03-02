@@ -25,7 +25,6 @@ using namespace shredder;
 using namespace boost::uuids;
 
 distributed<req_service> req_server;
-extern mongocxx::pool *pool;
 
 static const char* ToCString(const v8::String::Utf8Value& value) {
     return *value ? *value : "<string conversion failed>";
@@ -84,7 +83,7 @@ future<> req_service::register_service(std::string service) {
                 .ToLocalChecked(),
             v8::FunctionTemplate::New(isolate, call_function)
         );
-	global->Set(
+	    global->Set(
             v8::String::NewFromUtf8(isolate, "NewDB", v8::NewStringType::kNormal)
                 .ToLocalChecked(),
             v8::FunctionTemplate::New(isolate, new_database)
@@ -104,16 +103,11 @@ future<> req_service::register_service(std::string service) {
                 .ToLocalChecked(),
             v8::FunctionTemplate::New(isolate, shredder::base64_decode)
         );
-	global->Set(
+	    global->Set(
             v8::String::NewFromUtf8(isolate, "ServiceName", v8::NewStringType::kNormal)
                 .ToLocalChecked(),
 	    String::NewFromUtf8(isolate, service.c_str(), NewStringType::kNormal)
                 .ToLocalChecked()
-        );
-        global->Set(
-            v8::String::NewFromUtf8(isolate, "MongoGet", v8::NewStringType::kNormal)
-                .ToLocalChecked(),
-            v8::FunctionTemplate::New(isolate, shredder::mongo_get)
         );
         global->Set(
             v8::String::NewFromUtf8(isolate, "CoreID", v8::NewStringType::kNormal)
@@ -124,23 +118,23 @@ future<> req_service::register_service(std::string service) {
         Local<Context> c = Context::New(isolate, NULL, global);
         Context::Scope contextScope(c);
 
-	Local<String> source;
+	    Local<String> source;
         // Read the JS script file.
         if (!read_file(isolate, "services/" + service).ToLocal(&source)) {
             fprintf(stderr, "Error reading file\n");
         }
 
         Local<Script> s =
-          Script::Compile(c, source).ToLocalChecked();
+            Script::Compile(c, source).ToLocalChecked();
 
         Local<Value> result;
         if (!s->Run(c).ToLocal(&result)) {
-          printf("run script error\n");
+            printf("run script error\n");
         }
 
         ctx_map[service] = unallocated_ctx;
         contexts[unallocated_ctx].Reset(isolate, c);
-	unallocated_ctx++;
+	    unallocated_ctx++;
     }
     create_db(service);
     get_local_sched()->new_service(service);
@@ -207,9 +201,8 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
 
     auto start_time = rdtsc();
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-	 auto cstr = "error\n";
-	 get_local_sched()->reply(req_id, call_id, service, to_sstring(cstr));
-
+	    auto cstr = "error\n";
+	    get_local_sched()->reply(req_id, call_id, service, to_sstring(cstr));
     } else {
     }
 
@@ -221,24 +214,22 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
     function_states->total_exec_time->store(total);
     function_states->exec_time->store(total/count);
     if (count >= 100) {
-	function_states->count->store(0);
-	function_states->total_exec_time->store(0);
+	    function_states->count->store(0);
+	    function_states->total_exec_time->store(0);
     }
-    //function_states->mu->unlock();
-//    cout << service << function << " " << function_states->exec_time << endl;
 }
 
 enum AllocationSpace {
-  NEW_SPACE,   // Semispaces collected with copying collector.
-  OLD_SPACE,   // May contain pointers to new space.
-  CODE_SPACE,  // No pointers to new space, marked executable.
-  MAP_SPACE,   // Only and all map objects.
-  LO_SPACE,    // Promoted large objects.
+    NEW_SPACE,   // Semispaces collected with copying collector.
+    OLD_SPACE,   // May contain pointers to new space.
+    CODE_SPACE,  // No pointers to new space, marked executable.
+    MAP_SPACE,   // Only and all map objects.
+    LO_SPACE,    // Promoted large objects.
 
-  FIRST_SPACE = NEW_SPACE,
-  LAST_SPACE = LO_SPACE,
-  FIRST_PAGED_SPACE = OLD_SPACE,
-  LAST_PAGED_SPACE = MAP_SPACE
+    FIRST_SPACE = NEW_SPACE,
+    LAST_SPACE = LO_SPACE,
+    FIRST_PAGED_SPACE = OLD_SPACE,
+    LAST_PAGED_SPACE = MAP_SPACE
 };
 
 // The JS thread. Keep this thread although it's doing nothing, because 
@@ -270,10 +261,10 @@ void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     uint32_t key;
     if (args[1]->IsString()) {
         v8::String::Utf8Value s(args.GetIsolate(), args[1]);
-	auto k = std::string(*s);
-	std::hash<std::string> hasher;
-	auto hashed = hasher(k);
-	key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
+	    auto k = std::string(*s);
+	    std::hash<std::string> hasher;
+	    auto hashed = hasher(k);
+	    key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
     } else {
         key = args[1]->Uint32Value(ctx).ToChecked();
     }
@@ -281,11 +272,17 @@ void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     db_val* val = db->ht_get(key);
     if (!val) {
         val = (db_val*)malloc(sizeof(db_val));
-	val->data = NULL;
+	    val->data = NULL;
         val->length = 0;
     }
     
-    Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(args.GetIsolate(), val->data, val->length);
+    std::unique_ptr<BackingStore> backing =
+        ArrayBuffer::NewBackingStore(val->data,
+                                     val->length,
+                                     [](void*, size_t, void*){},
+                                     nullptr);
+    Local<ArrayBuffer> ab = ArrayBuffer::New(args.GetIsolate(),
+                                             std::move(backing));
 
     args.GetReturnValue().Set(ab);
     free(val);
@@ -301,15 +298,15 @@ void db_set(const v8::FunctionCallbackInfo<v8::Value>& args) {
     uint32_t key;
     if (args[1]->IsString()) {
         v8::String::Utf8Value s(args.GetIsolate(), args[1]);
-	auto k = std::string(*s);
-	std::hash<std::string> hasher;
-	auto hashed = hasher(k);
-	key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
+	    auto k = std::string(*s);
+	    std::hash<std::string> hasher;
+	    auto hashed = hasher(k);
+	    key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
     } else {
         key = args[1]->Uint32Value(ctx).ToChecked();
     }
 
-    auto content = args[2].As<v8::ArrayBuffer>()->Externalize();
+    auto content = *(args[2].As<v8::ArrayBuffer>()->GetBackingStore());
 
     auto version = args[3]->Uint32Value(ctx).ToChecked();
 
@@ -359,7 +356,13 @@ void get_hash_table(const v8::FunctionCallbackInfo<v8::Value>& args) {
     auto db = get_db(name);
 
     auto table = db->get_table_direct(); 
-    Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(args.GetIsolate(), table, 1024*1024);
+    std::unique_ptr<BackingStore> backing =
+        ArrayBuffer::NewBackingStore(table,
+                                     1024*1024,
+                                     [](void*, size_t, void*){},
+                                     nullptr);
+    Local<ArrayBuffer> ab = ArrayBuffer::New(args.GetIsolate(),
+                                             std::move(backing));
     args.GetReturnValue().Set(ab);
 }
 
@@ -456,30 +459,6 @@ void base64_decode(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
     args.GetReturnValue().Set(
     v8::String::NewFromUtf8(args.GetIsolate(), dest.c_str(),
-                            v8::NewStringType::kNormal).ToLocalChecked());
-}
-
-void mongo_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    Isolate * isolate = args.GetIsolate();
-    HandleScope handle_scope(isolate);    
-
-    v8::String::Utf8Value arg0(isolate, args[0]);
-    auto db = std::string(*arg0);
-    v8::String::Utf8Value arg1(isolate, args[1]);
-    auto collection = std::string(*arg1);
-    v8::String::Utf8Value arg2(isolate, args[2]);
-    auto username= std::string(*arg2);
-
-    auto cli = pool->acquire();
-    auto col = cli->database(db)[collection];
-    bsoncxx::stdx::optional<bsoncxx::document::value> maybe_result =
-      col.find_one(bsoncxx::builder::stream::document{} 
-		      << "username" 
-		      << username 
-		      << bsoncxx::builder::stream::finalize);
-
-    args.GetReturnValue().Set(
-    v8::String::NewFromUtf8(args.GetIsolate(), bsoncxx::to_json(*maybe_result).c_str(),
                             v8::NewStringType::kNormal).ToLocalChecked());
 }
 }

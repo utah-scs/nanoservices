@@ -27,29 +27,17 @@ std::unordered_map<std::string, void*> req_wf_map;
 
 void scheduler::dispatch(void) {
     auto i = this_shard_id();
-//    cores[i].mu->lock();
-/*    if (!cores[i].q.size()) {
-        cores[i].busy->store(false);
-        uint64_t current = rdtsc();
-
-        cores[i].busy_till->store(current);
-    }*/
-//    cores[i].mu->unlock();
 
     if (!cores[i].q.size()) {
-	return;
+	    return;
     }
-
-
-/*    engine().add_task(cores[i].q.front());
-    cores[i].q.pop();*/
 
     cores[0].mu->lock();
     if ((!curr_wf.size()) &&
         (cores[i].task_map.find(cores[i].q.front()) != cores[i].task_map.end())) {
         engine().add_task(cores[i].task_map[cores[i].q.front()]);
-	cores[i].task_map.erase(cores[i].q.front());
-	cores[i].q.pop_front();
+	    cores[i].task_map.erase(cores[i].q.front());
+	    cores[i].q.pop_front();
     } 
     cores[0].mu->unlock();
 };
@@ -68,8 +56,6 @@ void scheduler::start() {
 	for (int i = 0; i < smp::count; i++)
 	    cores[i].init();
     }
-//    if (this_shard_id() ==8)
-//        ping();
 }
 
 future<> scheduler::ping() {
@@ -128,18 +114,6 @@ static sstring http_date() {
         tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 
-/**
- * This function return the different name label values
- *  for the named metric.
- *
- *  @note: If the statistic or label doesn't exist, the test
- *  that calls this function will fail.
- *
- * @param metric_name - the metric name
- * @param label_name - the label name
- * @return a set containing all the different values
- *         of the label.
- */
 static double get_utilization(void) {
     namespace smi = seastar::metrics::impl;
     auto all_metrics = smi::get_values();
@@ -148,7 +122,7 @@ static double get_utilization(void) {
     for (int i = 0; i < all_metadata.size(); i++) {
         auto mt = all_metadata[i].metrics.begin();
         for (auto v : values[i]) {
-            if (mt->id.full_name() == "reactor_utilization") {
+            if (mt->name() == "reactor_utilization") {
                 double tmpd = v.d();
                 return tmpd;
             }
@@ -228,9 +202,6 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     auto u = get_utilization();
     utilization[cpu] = u; 
 
-
-    cout << utilization << endl;
-
     auto key = service + call_id + "reply";
 
     if (req_map.find(key) == req_map.end()) {
@@ -267,15 +238,11 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
     } else {
         curr_req.insert(call_id);
         cores[cpu].task_map[call_id] = 
-        //cores[cpu].q.push(
-        //engine().add_task(
             make_task(default_scheduling_group(), [this, req_id, call_id, service, function,
             	                               jsargs, function_states] () {
                 local_req_server().run_func(req_id, call_id, service, function, jsargs,
             		                function_states);
-            })
-        ;
-    //);
+            });
     }
     cores[0].mu->unlock();
 
@@ -284,85 +251,77 @@ future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string ca
 }
 
 size_t get_core(uint64_t exec_time, sstring req_id, sstring call_id, sstring service) {
-    auto cpu = this_shard_id();
-    if (smp::count <= HW_Q_COUNT)
-        return this_shard_id();
-
+    int core_id;
     uint64_t current = rdtsc();
+    if (smp::count <= HW_Q_COUNT) {
+        core_id = this_shard_id();
+    } else {
+        auto busy_local = cores[this_shard_id()].busy_till->load();
+        if (exec_time < GATE) {
+            cores[this_shard_id()].busy_till->store(std::max(busy_local, current) + exec_time);
+            return this_shard_id();
+        }
 
-    auto busy_local = cores[this_shard_id()].busy_till->load();
-    if (exec_time < GATE) {
-        cores[this_shard_id()].busy_till->store(std::max(busy_local, current) + exec_time);
-        return this_shard_id();
-    }
-
-    cores[0].mu->lock();
-    uint64_t min = ULLONG_MAX;
-    int min_index = -1;
+        cores[0].mu->lock();
+        uint64_t min = ULLONG_MAX;
+        int min_index = -1;
  
-    for (int i = HW_Q_COUNT; i < smp::count; i++) {
-        //cores[i].mu->lock();
+        for (int i = HW_Q_COUNT; i < smp::count; i++) {
 #ifdef BOOL_SCHED
-	auto busy = cores[i].busy->load();
-	if (busy)
-	    continue;
-	else {
-	    min_index = i;
-	    break;
-	}
+	        auto busy = cores[i].busy->load();
+	        if (busy)
+	            continue;
+	        else {
+	            min_index = i;
+	            break;
+	        }
 #endif
-	auto busy_till = cores[i].busy_till->load();
-        if (busy_till < min) {
-            min = busy_till;
-            min_index = i;
-        }
-        //cores[i].mu->unlock();
-    }
-
-    if (exec_time < LONG_FUNC && exec_time != -1) {
-	if (min < rdtsc())
-            min = rdtsc();
-	// for hard sharding
-        //min = ULLONG_MAX;
-        for (int i = 0; i < HW_Q_COUNT; i++) {
-#ifdef BOOL_SCHED
-        auto busy = cores[i].busy->load();
-        if (busy)
-            continue;
-        else {
-            min_index = i;
-            break;
-        }
-#endif
-           //cores[i].mu->lock();
-	   auto busy_till = cores[i].busy_till->load();
-           if (busy_till < min) {
+	        auto busy_till = cores[i].busy_till->load();
+            if (busy_till < min) {
                 min = busy_till;
                 min_index = i;
-           }
-            //cores[i].mu->unlock();
+            }
         }
-    }
+
+        if (exec_time < LONG_FUNC && exec_time != -1) {
+    	    if (min < rdtsc())
+                min = rdtsc();
+	        // for hard sharding
+            //min = ULLONG_MAX;
+            for (int i = 0; i < HW_Q_COUNT; i++) {
+#ifdef BOOL_SCHED
+                auto busy = cores[i].busy->load();
+                if (busy)
+                    continue;
+                else {
+                    min_index = i;
+                    break;
+                }
+#endif
+        	    auto busy_till = cores[i].busy_till->load();
+                if (busy_till < min) {
+                    min = busy_till;
+                    min_index = i;
+                }
+            }
+        }
 
 #ifdef BOOL_SCHED
-    if (min_index == -1)
-        min_index = rand() % smp::count;
+        if (min_index == -1)
+            min_index = rand() % smp::count;
 #endif
-//    if (exec_time < 1*2400000)
-//	min_index = this_shard_id();
-	
-    //cores[min_index].mu->lock();
-    cores[min_index].busy->store(true);
+        core_id = min_index;
+    }
+    cores[core_id].busy->store(true);
     if (exec_time == 0)
         exec_time = 1;
 
-    cores[min_index].q.push_back(call_id);
-    auto busy_till = cores[min_index].busy_till->load();
-    cores[min_index].busy_till->store(std::max(busy_till, current) + exec_time);
-    //cores[min_index].mu->unlock();
+    cores[core_id].q.push_back(call_id);
+    auto busy_till = cores[core_id].busy_till->load();
+    cores[core_id].busy_till->store(std::max(busy_till, current) + exec_time);
     cores[0].mu->unlock();
     
-    return min_index;
+    return core_id;
 }
 
 future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string call_id, 
@@ -391,11 +350,11 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
 	    workflow_states->fuse = true;
 
         wf_map[func] = (void*)workflow_states;
-	req_wf_map[req_id] = wf_map[func];
+    	req_wf_map[req_id] = wf_map[func];
     }
 
     if (req_id == call_id)
-	req_wf_map[req_id] = wf_map[func];
+	    req_wf_map[req_id] = wf_map[func];
 
     auto workflow_states = (struct wf_states*)req_wf_map[req_id];
     req_wf_mu.unlock();
@@ -403,10 +362,10 @@ future<> scheduler::schedule(size_t prev_cpu, std::string req_id, std::string ca
     size_t core;
 
     if (workflow_states->fuse) {
-	if (req_id == call_id)
+	    if (req_id == call_id)
             core = get_core(workflow_states->exec_time, req_id, call_id, service);
-	else
-	    core = this_shard_id();
+	    else
+	        core = this_shard_id();
     } else
         core = get_core(function_states->exec_time->load(), req_id, call_id, service);
 
@@ -427,9 +386,9 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
     cores[0].mu->lock();
     for (auto it = cores[cpu].q.begin(); it != cores[cpu].q.end(); it++)
 	if (*it == call_id) {
-            cores[cpu].q.erase(it);
+        cores[cpu].q.erase(it);
 	    break;
-        }
+    }
 
     curr_req.erase(call_id);
 
@@ -451,47 +410,44 @@ future<> scheduler::reply(std::string req_id, std::string call_id, std::string s
         rep._status = (httpd::reply::status_type)pt.get<int>("_status");
         rep._message = pt.get<std::string>("_message");
 
-	auto s = (struct local_reply_states*)states;
+	    auto s = (struct local_reply_states*)states;
         s->res.set_value(rep);
 
-	cores[0].mu->lock();
+	    cores[0].mu->lock();
         curr_wf.erase(req_id);
         cores[0].mu->unlock();
 
-	dispatch();
-	free(states);
-	//req_wf_mu.lock();
-	//req_wf_map.erase(req_id);
-	//req_wf_mu.unlock();
-	return make_ready_future<>();
+	    dispatch();
+	    free(states);
+	    return make_ready_future<>();
     } else {
         if (states->prev_cpuid == cpu) {
             local_req_server().run_callback(call_id, service, ret);
             dispatch();
-	    free(states);
+	        free(states);
             return make_ready_future<>();
-	} else {
-	    req_wf_mu.lock();
-	    auto workflow_states = (struct wf_states*)req_wf_map[req_id];
-	    if (workflow_states->count == 1000) {
-	        workflow_states->count = 0;
-		workflow_states->total_exec_time = 0;
-	    }
+	    } else {
+	        req_wf_mu.lock();
+	        auto workflow_states = (struct wf_states*)req_wf_map[req_id];
+	        if (workflow_states->count == 1000) {
+	            workflow_states->count = 0;
+		        workflow_states->total_exec_time = 0;
+	        }
 
-	    workflow_states->count++;
-	    workflow_states->total_exec_time += (rdtsc() - wf_starts[req_id]);
-	    workflow_states->exec_time = (workflow_states->total_exec_time/workflow_states->count);
-	    req_wf_mu.unlock();
-	    wf_starts.erase(req_id);
+	        workflow_states->count++;
+	        workflow_states->total_exec_time += (rdtsc() - wf_starts[req_id]);
+	        workflow_states->exec_time = (workflow_states->total_exec_time/workflow_states->count);
+	        req_wf_mu.unlock();
+	        wf_starts.erase(req_id);
             cores[0].mu->lock();
-	    if (workflow_states->fuse)
-	        curr_wf.erase(req_id);
+	        if (workflow_states->fuse)
+	            curr_wf.erase(req_id);
             cores[0].mu->unlock();
 
             sched_server.invoke_on(states->prev_cpuid, &scheduler::reply, req_id, call_id, service, ret).then([&] {
-	    dispatch();});
-	    free(states);
+	        dispatch();});
+	        free(states);
             return make_ready_future<>();
-	}
+	    }
     }
 }

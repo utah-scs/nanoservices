@@ -25,6 +25,7 @@ function str2ab(str) {
 }
 
 function test(req_id, args) {
+    print("test")
     print(DBSet("test.js", 1, str2ab("ok"), 0));
     let ab = DBGet("test.js", 1);
     let v = new DataView(ab);

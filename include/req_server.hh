@@ -88,8 +88,6 @@ public:
     }
 
     Isolate* isolate;
-    mongocxx::client *cli;
-    mongocxx::client* get_mongo_client(){return cli;}
 
     future<> start();
     future<> stop();
