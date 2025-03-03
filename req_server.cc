@@ -118,7 +118,7 @@ future<> req_service::register_service(std::string service) {
         Local<Context> c = Context::New(isolate, NULL, global);
         Context::Scope contextScope(c);
 
-	    Local<String> source;
+        Local<String> source;
         // Read the JS script file.
         if (!read_file(isolate, "services/" + service).ToLocal(&source)) {
             fprintf(stderr, "Error reading file\n");
@@ -134,7 +134,7 @@ future<> req_service::register_service(std::string service) {
 
         ctx_map[service] = unallocated_ctx;
         contexts[unallocated_ctx].Reset(isolate, c);
-	    unallocated_ctx++;
+        unallocated_ctx++;
     }
     create_db(service);
     get_local_sched()->new_service(service);
@@ -162,7 +162,6 @@ void req_service::run_callback(std::string call_id, std::string service, sstring
 
     Local<Value> result;
     if (!callback->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-
     } else {
     }
     get_local_sched()->del_req_states(key);
@@ -184,7 +183,7 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
     Local<Value> process_val;
     if (!context->Global()->Get(context, process_name).ToLocal(&process_val) ||
         !process_val->IsFunction()) {
-         printf("get function fail\n");
+        printf("get function fail\n");
     }
     process_fun = Local<Function>::Cast(process_val);
  
@@ -201,8 +200,8 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
 
     auto start_time = rdtsc();
     if (!process_fun->Call(context, context->Global(), argc, argv).ToLocal(&result)) {
-	    auto cstr = "error\n";
-	    get_local_sched()->reply(req_id, call_id, service, to_sstring(cstr));
+        auto cstr = "error\n";
+        get_local_sched()->reply(req_id, call_id, service, to_sstring(cstr));
     } else {
     }
 
@@ -214,8 +213,8 @@ void req_service::run_func(std::string req_id, std::string call_id, std::string 
     function_states->total_exec_time->store(total);
     function_states->exec_time->store(total/count);
     if (count >= 100) {
-	    function_states->count->store(0);
-	    function_states->total_exec_time->store(0);
+        function_states->count->store(0);
+        function_states->total_exec_time->store(0);
     }
 }
 
@@ -261,10 +260,10 @@ void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     uint32_t key;
     if (args[1]->IsString()) {
         v8::String::Utf8Value s(args.GetIsolate(), args[1]);
-	    auto k = std::string(*s);
-	    std::hash<std::string> hasher;
-	    auto hashed = hasher(k);
-	    key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
+        auto k = std::string(*s);
+        std::hash<std::string> hasher;
+        auto hashed = hasher(k);
+        key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
     } else {
         key = args[1]->Uint32Value(ctx).ToChecked();
     }
@@ -272,7 +271,7 @@ void db_get(const v8::FunctionCallbackInfo<v8::Value>& args) {
     db_val* val = db->ht_get(key);
     if (!val) {
         val = (db_val*)malloc(sizeof(db_val));
-	    val->data = NULL;
+        val->data = NULL;
         val->length = 0;
     }
     
@@ -298,10 +297,10 @@ void db_set(const v8::FunctionCallbackInfo<v8::Value>& args) {
     uint32_t key;
     if (args[1]->IsString()) {
         v8::String::Utf8Value s(args.GetIsolate(), args[1]);
-	    auto k = std::string(*s);
-	    std::hash<std::string> hasher;
-	    auto hashed = hasher(k);
-	    key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
+        auto k = std::string(*s);
+        std::hash<std::string> hasher;
+        auto hashed = hasher(k);
+        key = static_cast<int>(hashed % numeric_limits<uint32_t>::max());
     } else {
         key = args[1]->Uint32Value(ctx).ToChecked();
     }
