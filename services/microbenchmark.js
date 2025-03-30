@@ -35,7 +35,7 @@ function chain(req_id, call_id, args) {
     let endtime = new Date().getTime() + Number(ms);
     while (new Date().getTime() < endtime) {
     }
-    if (l == 0) {
+    if (l <= 0) {
         let rep = new Object();
         rep._status = 200;
         rep._message = "OK";
