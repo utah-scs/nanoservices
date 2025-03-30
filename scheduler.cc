@@ -18,7 +18,6 @@
 using namespace seastar;
 namespace pt = boost::property_tree;
 
-std::vector<unsigned> utilization;
 std::vector<core_states> cores;
 std::unordered_map<std::string, void*> func_map;
 std::unordered_map<std::string, void*> wf_map;
@@ -51,7 +50,6 @@ void scheduler::start() {
     if (this_shard_id() >= HW_Q_COUNT)
         big_core = true;
     if (this_shard_id() == 0) {
-        utilization.resize(smp::count, 0);
         cores.resize(smp::count, core_states());
 	for (int i = 0; i < smp::count; i++)
 	    cores[i].init();
@@ -112,24 +110,6 @@ static sstring http_date() {
     return seastar::format("{}, {:02d} {} {} {:02d}:{:02d}:{:02d} GMT",
         days[tm.tm_wday], tm.tm_mday, months[tm.tm_mon], 1900 + tm.tm_year,
         tm.tm_hour, tm.tm_min, tm.tm_sec);
-}
-
-static double get_utilization(void) {
-    namespace smi = seastar::metrics::impl;
-    auto all_metrics = smi::get_values();
-    auto& values = all_metrics->values;
-    const auto& all_metadata = *all_metrics->metadata;
-    for (int i = 0; i < all_metadata.size(); i++) {
-        auto mt = all_metadata[i].metrics.begin();
-        for (auto v : values[i]) {
-            if (mt->name() == "reactor_utilization") {
-                double tmpd = v.d();
-                return tmpd;
-            }
-            mt++;
-        }
-    }
-    return 0;
 }
 
 future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req_id, 
@@ -199,8 +179,6 @@ future<> scheduler::new_req(std::unique_ptr<httpd::request> req, std::string req
 future<> scheduler::run_func(size_t prev_cpu, std::string req_id, std::string call_id, 
 		std::string service, std::string function, std::string jsargs) {
     auto cpu = engine().cpu_id();
-    auto u = get_utilization();
-    utilization[cpu] = u; 
 
     auto key = service + call_id + "reply";
 
