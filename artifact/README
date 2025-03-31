@@ -1,0 +1,1 @@
+wrk -t1 -c1 -d1s --latency -H "MS: 4" -H "L: 1" http://192.168.2.7:11211/microbenchmark/chain -R 10
