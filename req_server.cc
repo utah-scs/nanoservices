@@ -305,21 +305,21 @@ void db_set(const v8::FunctionCallbackInfo<v8::Value>& args) {
         key = args[1]->Uint32Value(ctx).ToChecked();
     }
 
-    auto content = *(args[2].As<v8::ArrayBuffer>()->GetBackingStore());
+    auto content = args[2].As<v8::ArrayBuffer>()->GetBackingStore();
 
     auto version = args[3]->Uint32Value(ctx).ToChecked();
 
     db_val* val = (db_val*)malloc(sizeof(db_val));
-    auto tmp = malloc(content.ByteLength() + sizeof(int));
+    auto tmp = malloc(content->ByteLength() + sizeof(int));
     auto p = (int*)tmp;
     *p = rand();
     p++;
-    memcpy(p, content.Data(), content.ByteLength());
+    memcpy(p, content->Data(), content->ByteLength());
     val->data = tmp;
-    val->length = content.ByteLength() + sizeof(int);
+    val->length = content->ByteLength() + sizeof(int);
     val->key = key;
 
-    free(content.Data());
+    free(content->Data());
 
     if (db->ht_set(val, version)) {
         args.GetReturnValue().Set(
