@@ -1,1 +1,18 @@
-wrk -t1 -c1 -d1s --latency -H "MS: 4" -H "L: 1" http://192.168.2.7:11211/microbenchmark/chain -R 10
+1. Compile Pyrosome
+  
+  On the server node, run setup_server.sh
+  On the client node, run setup_client.sh
+
+2. Run Pyrosome
+
+  On the server node, run:
+  ./shredder -c 16 -m30G
+
+3. Run basic benchmark
+
+  On the client node, run:
+  wrk -t1 -c1 -d1s --latency -H "MS: 2" -H "L: 4" http://192.168.2.7:11211/microbenchmark/chain -R 10
+
+  This command runs a service chain of 4 services each runs for 2 ms.
+  The "MS" and "L" parameters can be modified.
+
